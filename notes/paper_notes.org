@@ -1,0 +1,210 @@
+#+STARTUP: latexpreview
+#+title: Paper Notes
+
+* Iterative Approximate Cross Validation
+** The ERM (Empirical Risk Minimisation) Problem
+
+Say we have a hypothesis model $h : X \rightarrow Y$, inputs $\mathbf{X}$ and targets $\mathbf{Y}$. We can model our data as a joint probability distribution to account for noise. So, we assume there is a joint probability distribution $P(x, y)$ over $\mathbf{X}$ and $\mathbf{Y}$ from which our data is sampled (iid).
+
+Say we have a real-valued loss $L(\hat{y}, y)$, the **risk** associated with hypothesis $h(x)$ is:
+
+\[
+    R(h) = \mathb{E}[L(h(x), y)] = \int L(h(x), y) dP(X, y)
+\]
+
+The ultimate goal is to find a hypothesis $h^*$ among a class of functions $\mathcal{H}$ where the risk is minimal:
+
+\[
+    h^* = \arg\min_{h \in \mathcal{H}} R(h)
+\]
+
+Solving this empirically just equates to averaging the loss over the data set.
+
+** Classical Approximate Methods
+For more info go to [[Newton Step (Newton Method in Optimisation)][Newton Step (Newton Method in Optimisation)]] and [[Infinitesimal Jackknife (IJ)][Infinitesimal Jackknife (IJ)]].
+
+** Iterative Approximate CV
+*** Framework (Excluding CV considerations)
+Problems are of the general form:
+
+\[
+    F(\mathcal{Z}; \theta) = g(\mathcal{Z}; \theta) + h(\theta)
+\]
+
+where $g(\mathcal{Z}; \theta)$ is twice-differentiable in $\theta$ and $h(\theta)$ can be non-differentiable.
+
+We consider solving the ERM problem $\hat{\theta} = \arg\min_{\theta \in \mathbb{R}^P} F(\mathcal{Z}; \theta)$ iteratively. For each step $t \geq 1$, we take a gradient step on $g$ and a proximal step on $h$. Specifically, the iterations are given by
+
+\[
+    \hat{\theta}^{(t)} = \arg\min_{\theta} \left\{ \frac{1}{2 \alpha_t} \| \theta - \theta^\prime \| + h(\theta) \right\}
+\]
+
+where $\theta^\prime = \hat{\theta}^{(t-1)} - \alpha_t \nabla_{\theta} g(Z_{S_t}; \hat{\theta}^{(t-1)})$ and $S_t$ represents a subset of indices and $Z_{S_t}$ the dataset corresponding to the indices.
+
+**** Gradient Descent
+If we assume the objective function $F$ is twice differentiable we can simply take $g(\mathcal{Z}; \theta) = F(\mathcal{Z}; \theta)$ and $h \equiv 0$. For example, if we have a loss function $l$ and differentiable regularisation function $\pi$, we take
+
+\[
+    g(\mathcal{Z}; \theta) = \sum_{i=1}^N l(\mathcal{Z}; \theta) + \lambda \pi(\theta) \quad \text{ and } \quad h \equiv 0
+\]
+
+This therefore gives us updates
+
+\[
+    \hat{\theta}^{(t)} = \hat{\theta}^{(t-1)} - \alpha_t \nabla_{\theta} F(\mathcal{Z}; \hat{\theta}^{(t-1)})
+\]
+
+**** Stochastic Gradient Descent
+
+Similar to classic GD, however we only pick a subset $S_t \in [ n ]$ of indices at each learning step:
+
+\[
+    \hat{\theta}^{(t)} = \hat{\theta}^{(t-1)} - \alpha_t \nabla_{\theta} F(\mathcal{Z}_{S_t}; \hat{\theta}^{(t-1)})
+\]
+
+**** Proximal Gradient Descent
+
+Say we have a non differentiable $h(\theta)$ which has an inexpensive proximal map. For example the $l_1$ norm penalty where we can now take $g(\mathcal{Z}; \theta) = \sum_{i=1}^N l(\mathcal{Z}; \theta)$ and $h(\theta) = \lambda \pi(\theta)$ where $\pi(\theta) = \|\theta\|_1$.
+
+Our problem reduces to proximal gradient descent,
+\[
+    \hat{\theta}^{(t)} = \arg\min_{\theta} \left\{ \frac{1}{2 \alpha_t} \| \theta - \theta^\prime \| + h(\theta) \right\}
+\]
+
+where $\theta^\prime = \hat{\theta}^{(t-1)} - \alpha_t \nabla_{\theta} g(Z; \hat{\theta}^{(t-1)})$.
+
+*** Estimation Procedure
+**** General Case
+
+In the general case, when IACV is applied to LOOCV the targets $\hat{\theta}^{(t)}_{-i}$ are found by running the iterative solver, just with the $i$-th point being left out, so:
+
+\[
+    \hat{\theta}^{(t)}_{-i} = \arg\min_{\theta} \left\{ \frac{1}{2 \alpha_t} \| \theta - \theta^\prime \| + h(\theta) \right\} \quad \text{where } \theta^\prime = \hat{\theta}^{(t-1)}_{-i} - \alpha_t \nabla_{\theta} g(\mathcal{Z}_{S_t \setminus \{i\}}; \hat{\theta}^{(t-1)}_{-i})
+\]
+
+Running this algorithm for $i \in [n]$ is computationally expensive, as we need to calculate gradients for $g$ at $n$ different parameter vectors for each iteration $t$.
+
+We can instead use inexpensive **surrogates** for these gradients to retrieve approximations of the LOOCV iterates. In the problem setting above, we calculate our current iterate $\hat{\theta}_{-i}^{(t)}$ by using the previous iterate at $t-1$ and the gradient $\nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}_{-i}^{(t-1)})$. The previous iterate we already have, so we need to find a way of approximating the gradient.
+
+To estimate the gradient, we can use a first-order [[https:https://math.libretexts.org/Bookshelves/Analysis/Supplemental_Modules_(Analysis)/Series_and_Expansions/Taylor_Expansion][Taylor expansion]] centered around $\hat{\theta}^{(t-1)}$ (i.e the non-LOOCV parameter estimate for the current iteration):
+
+\[
+    \nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}_{-i}^{(t-1)}) \approx \nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right)
+\]
+
+We can now define the general method for **IACV** as:
+
+\[
+    \tilde{\theta}^{(t)}_{-i} = \arg\min_{\theta} \left\{ \frac{1}{2 \alpha_t} \| \theta - \theta^\prime \| + h(\theta) \right\} \quad \text{where } \theta^\prime = \tilde{\theta}^{(t-1)}_{-i} - \alpha_t G^{(t-1)}_{-i}
+\]
+
+where $G^{(t-1)}_{-i} = \nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right)$.
+
+
+* Approximate Cross Validation in High Dimensions
+** Approximation Overview
+Say we have a classical problem where $\theta \in \Theta \subseteq \mathbb{R}^D$ be the parameter we are trying to estimate for a dataset of size $N$.
+
+\[
+    \hat{\theta} = {\arg\min}_{\theta \in \Theta} \frac{1}{N} \sum_{i=1}^N f_{i}(\theta) + \lambda R(\theta)
+\]
+
+where $f : \Theta \rightarrow \mathbb{R}$ is a loss function, $R : \Theta \rightarrow \mathbb{R}_+$ a regulariser and $\lambda \in \mathbb{R}_+$ a regularisation parameter controlling the magnitude of the penalty applied.
+
+In the following consider the case of a GLM (Generalised Linear Model), where our predictions take the form $\hat{y_i} = x_i^T \theta$ and therefore $f_i(\theta) = f(x_i^T \theta, y_i)$.
+
+Consider LOOCV (Leave One Out Cross Validation), where
+
+\[
+    \hat{\theta}_{\setminus i} = \arg\min_{\theta \in \Theta} \frac{1}{N} \sum_{m : m \neq i} f_m(\theta) + \lambda R(\theta)
+\]
+
+represents the parameters in the step where data point $i$ is excluded from training.
+
+For the following section, assume that $F(\theta)$ is the unregularised objective.
+
+*** Newton Step (Newton Method in Optimisation)
+
+The objective with one data point removed can be represented as
+
+\[
+    F^{\setminus n}(\theta) + \lambda R(\theta) = \frac{1}{N} \sum_{i = 1}^N f(x^T_i \theta, y_i) - \frac{1}{N} f(x^T_n \theta, y_n) + \lambda R(\theta)
+\]
+
+Therefore, the Hessian for this objective is,
+
+\[
+    H(\theta) - \frac{1}{N} \nabla^2_{\theta} f(x_n^T \theta, y_n)
+\]
+
+where $H(\theta) = \nabla^2_{\theta} F(\theta) + \lambda \nabla^2_{\theta} R(\theta)$.
+
+If we start iterations at $\hat{\theta} = \arg\min_{\theta} F(\theta) + \lambda R(\theta)$ our Newton steps will then be
+
+
+\[
+    \hat{\theta}_{\setminus i} = \hat{\theta} - \left(H(\hat{\theta}) - \frac{1}{N} \nabla^2_{\theta} f(x_n^T \hat{\theta}, y_n)\right)^{-1} \left(\frac{1}{N} \sum_{i = 1}^N \nabla f(x^T_i \hat{\theta}, y_i) - \frac{1}{N} \nabla f(x^T_n \hat{\theta}, y_n) + \lambda \nabla R(\hat{\theta})\right)
+\]
+
+By definition,
+\[
+    \frac{1}{N} \sum_{i = 1}^N \nabla f(x^T_i \hat{\theta}, y_i) + \lambda \nabla R(\hat{\theta}) = 0
+\]
+Therefore,
+\[
+    \hat{\theta}_{\setminus i} = \hat{\theta} + \frac{1}{N} \left(H(\hat{\theta}) - \frac{1}{N} \nabla^2_{\theta} f(x_n^T \hat{\theta}, y_n)\right)^{-1} \nabla f(x^T_n \hat{\theta}, y_n)
+\]
+
+which is the definition of the Newton Step in the LOOCV approximation.
+
+*** Infinitesimal Jackknife (IJ)
+
+First, we define weighted optimisation problem defined as
+
+\[
+    \hat{\theta}^w = \arg\min_{\theta \in \Theta} G(w, \theta) = \arg\min_{\theta \in \Theta} \frac{1}{N} \sum_{i=1}^N w_i f(x_i^T \theta, y_i) + \lambda R(\theta)
+\]
+
+where $G$ is continuous and twice differentiable, with an invertible Hessian at $\hat{\theta}^1$ (the solution where $w_i = 1$).
+
+We can use the Taylor series expansion and find an approximation for $\hat{\theta}^w$ as follows,
+
+\[
+    \hat{\theta}^w = \hat{\theta} + \sum_{i=1}^N \frac{d \hat{\theta}}{d w_n} (w_n - 1)
+\]
+
+Assuming that we use the $1$ vector for $w$ (i.e just the base data analysis problem). We find that
+
+\[
+    \frac{\partial G}{\partial \theta} &= 0 \\
+    \frac{d}{dw_n} \frac{\partial G}{\partial \theta} &= \frac{\partial^2 G}{\partial \theta \partial w_n} \frac{dw_n}{dw_n} + \frac{\partial^2 G}{\partial \theta^2} \frac{d \hat{\theta}^2}{d w_n} = 0 \\
+\]
+
+Therefore,
+\[
+    \frac{\partial \hat{\theta}}{\partial w_n} &= \left(\frac{\partial^2 G}{\partial \theta^2}\right)^{-1} \frac{\partial^2 G}{\partial \theta \partial w_n} \\
+    &= -\frac{1}{N} H(\hat{\theta})^{-1} \nabla_{\theta} f(x_n^T \theta, y_n)
+\]
+
+Finally, out Infinitesimal Jackknife updates are simply,
+\[
+    \hat{\theta}^w = \hat{\theta} - \frac{1}{N} \sum_{i=1}^N H(\hat{\theta})^{-1} \nabla_{\theta} f(x_i^T \theta, y_i) (w_i - 1)
+\]
+where we can tweak $w$ to accommodate for LOOCV by setting all values other than the point we exclude to zero.
+
+This would make the step:
+\[
+    \hat{\theta}^w = \hat{\theta} + \frac{1}{N} H(\hat{\theta})^{-1} \nabla_{\theta} f(x_n^T \theta, y_n)
+\]
+if we choose $w$ to be a vector excluding a point $n$.
+
+** PROJ Problems in high dimensions
+*** Computational Cost
+When $D$ is large relative to $N$, at every step we need to invert the Hessian $H(\theta)$ and also multiply it by the corresponding gradient.
+
+In the case of the Infinitesimal Jackknife, we need a single matrix inversion for $H(\hat{\theta})$ and $N$ matrix multiplications for a time complexity of $O(D^3 + ND^2)$.
+
+**** TODO Why N matmuls?
+
+*** Inability to find Inverse
+*** Poor error bounds

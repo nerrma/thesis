@@ -1,0 +1,86 @@
+#+STARTUP: latexpreview
+#+title: Convex Optimisation by Ryan Tibshirani
+
+* Lecture 1 (Convex Problems)
+
+A convex optimisation is of the form
+
+\begin{align*}
+    \min_{x \in D} &f(x) \\
+    \text{subject to} \\
+    g_i(x) &\leq 0, i = 1, \ldots m \\
+    h_j(x) &= 0, j = 1, \ldots r \\
+\end{align*}
+
+where $f$ and $g_i$ are all convex and $h_j$ are affine.
+
+**Any local minimiser of a convex optimisation problem is a global one.**
+
+** Convex Sets
+*** Definition 1.1
+A set $C \subseteq \mathbb{R}^n$ is a convex set if for any $x, y \in C$, we have
+
+
+\[
+    tx + (1 - t)y \in C, \text{for all } 0 \leq t \leq 1
+\]
+
+Intuitively, this means that a line drawn between any point in the set will **always** be contained within the set.
+
+*** Examples of Convex Sets
+- Empty set, point, line.
+- Norm ball $\{x : \|x\| \leq r \}$ for a given norm $\|\cdot\|$ with radius $r$.
+- Hyperplane: $\{x : a^T x = b\}$ for a given $a, b$.
+
+*** Key Properties
+**** Separating Hyperplane Theorem
+Two disjoint convex sets have a separating hyperplane between them. If $C, D$ are nonempty convex sets with $C \cap D = \emptyset$ then there exists an $a, b$ such that:
+
+\[
+    C \subseteq \{x : a^Tx \leq b\},  \quad D \subseteq \{x : a^Tx \geq b\}
+\]
+
+**** Supporting Hyperplane Theorem
+A boundary of a convex set has a supporting hyperplane passing through it. If $C$ is a convex set and $x_0 \in \text{bd}(C)$ (where $\text{bd}$ is the boundary subset operator) then there exists an $a$ such that
+
+\[
+    C \subseteq \{x : a^T x \leq a^T x_0\}
+\]
+
+** Convex Functions
+*** Definition 2.8
+A function $f : \mathbb{R}^n \to \mathbb{R}$ is convex where the domain of the function $\text{dom}(f) \subseteq \mathbb{R}^n$ is also convex. A convex function is such that
+
+\[
+    f(tx + (1-t)y) \leq tf(x) + (1-t)f(y), \quad \text{for } 0 \leq t \leq 1
+\]
+
+Intuitively, this means that a function is convex when it lies on or under the point joining $f(x)$ and $f(y)$.
+
+*** Modifiers
+
+A function $f$ is **strictly convex** if $f(tx + (1-t)y) \leq tf(x) + (1-t)f(y), \quad \text{for } 0 < t < 1$ for $x \neq y$. This means that the curvature of the function is greater than that of a linear function.
+
+A function $f$ is **strongly convex** if $f(\frac{-m}{2} \|x\|^2_2)$ is convex for a parameter $m > 0$. This implies that the function is **at least** as convex as a quadratic function.
+
+Strong convexity implies strict convexity which therefore applies convexity.
+
+*** Key Properties
+- A function is convex iff its restriction to any line convex.
+- First-order characterisation   if $f$ is differentiable , then $f$ is convex iff $\text{dom}(f)$ is convex and
+
+  \[
+    f(y) \geq f(x) + \nabla f(x)^T (y - x)
+  \]
+
+  for all $x, y \in \text{dom}(f)$. Therefore a differentiable convex function $\nabla f(x) = 0$ minimises $f$.
+
+- Second order characterisation: if $f$ is twice-differentiable, then $f$ is convex iff $\text{dom}(f)$ is convex and $\nabla^2 f(x) \geq 0$ for all $x \in \text{dom}(f)$.
+
+*** Useful Examples of Convex Functions
+- Least squares loss $\|y - Ax\|_2^2$ is always convex since $A^T A$ is positive semidefinite.
+- $\|x\|$ is convex for any norm.
+  - $l_p$ norms $\|x\|_p = \left(\sum_{i=1}^n x_p^i\right)^{(1/p)}$ for $p \geq 1$
+  - Operator and trace norms $\|X\|_{\text{op}} = \sigma_1(X)$ and $\|X\|_{\text{tr}} = \sum_{i=1}^r \sigma_r(X)$.
+
+* Lecture 2

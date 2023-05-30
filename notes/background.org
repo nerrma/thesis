@@ -1,0 +1,11 @@
+#+title: Background
+
+* TODO Cross Validation
+
+* TODO (Convex) Optimisation
+** TODO Newton's Method
+** TODO Proximal Gradient Descent
+
+* TODO High Dimensional Statistics
+** TODO LASSO
+** IDEA Matrix Completion

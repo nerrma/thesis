@@ -1,0 +1,11 @@
+#+title: Papers
+
+* Papers
+- [[pdf:~/Downloads/09-SS054.pdf][A survey of cross-validation procedures for model selection]]
+- [[pdf:~/Downloads/IACV.pdf][Iterative Approximate Cross Validation (IACV)]] ([[file:paper_notes.org::Iterative Approximate Cross Validation][Notes]])
+- [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]])
+- [[pdf:~/Downloads/DataRemoval.pdf][Algorithms that Approximate Data Removal]]
+
+* High Dimensional Statistics
+- [[https://en.wikipedia.org/wiki/High-dimensional_statistics][High Dimensional Statistics (Wikipedia)]]
+- [[https://www.youtube.com/watch?v=ftPIYD8rEIY][STAT 200C: High Dimensional Statistics]]
