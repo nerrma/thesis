@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 
 def sample_from_logreg(p=20, n=500):
     X = np.random.normal(0, 1, size=(n, p))  # sample (n, p) from standard normal
-    # theta_star = np.random.normal(0, 1, size=p).reshape(-1, 1)
 
     theta_star = np.zeros(p).reshape(-1, 1)
     theta_star[np.random.choice(p, 5)] = np.random.normal(0, 1)
@@ -44,7 +43,7 @@ def hess_F(X, y, theta, lbd=1e-6):
 
 
 def run_sim(n, p, n_iter=250):
-    X, theta_s, y = sample_from_logreg(p=p, n=n)
+    X, _, y = sample_from_logreg(p=p, n=n)
 
     lbd_v = 1e-6 * n
 

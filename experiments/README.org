@@ -1,0 +1,10 @@
+#+title: README
+
+Experiments recreated from the initial paper.
+
+Data from the paper is generated from a logistic regression as follows:
+- Create the samples of $X \in \mathbb{R}^{n \times p}$ where $p = 20$ by drawing from a standard normal distribution $X_i \sim N(0, 1)$
+- Randomly initialise a parameter $\theta^* \in \mathbb{R}^p$, which only has 5 non-zero entries
+- For every $i = 1, \ldots, n$, sample $Y_i \sim \text{Bernoulli}(\exp(X_i^T \theta^*)/(1 + \exp(X_i^T \theta^*)))$
+
+The main experiment is then just a logistic regression with regularisation which tries to recover the true parameter $\theta^*$. Our main loss function is made up of two parts $F(Z; \theta) = \sum_{i=1}^n l(Z_i; \theta) + \lambda \pi(\theta)$ where $l$ is a twice-differentiable loss function and $\pi$ is a regularisation function.
