@@ -1,0 +1,4 @@
+#+title: README
+
+Repository for my work on adapting [[https:www.arxiv.org/abs/2303.02732
+][Iterative Approximate Cross Validation]] (IACV) for work in different problem settings. The main problem setting explored are high dimensional problems.
