@@ -86,7 +86,7 @@ Running this algorithm for $i \in [n]$ is computationally expensive, as we need 
 
 We can instead use inexpensive **surrogates** for these gradients to retrieve approximations of the LOOCV iterates. In the problem setting above, we calculate our current iterate $\hat{\theta}_{-i}^{(t)}$ by using the previous iterate at $t-1$ and the gradient $\nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}_{-i}^{(t-1)})$. The previous iterate we already have, so we need to find a way of approximating the gradient.
 
-To estimate the gradient, we can use a first-order [[https:https://math.libretexts.org/Bookshelves/Analysis/Supplemental_Modules_(Analysis)/Series_and_Expansions/Taylor_Expansion][Taylor expansion]] centered around $\hat{\theta}^{(t-1)}$ (i.e the non-LOOCV parameter estimate for the current iteration):
+To estimate the gradient, we can use a first-order [[https:https://math.libretexts.org/Bookshelves/Analysis/Supplemental_Modules_(Analysis)/Series_and_Expansions/Taylor_Expansion][Taylor expansion]] centred around $\hat{\theta}^{(t-1)}$ (i.e the non-LOOCV parameter estimate for the current iteration):
 
 \[
     \nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}_{-i}^{(t-1)}) \approx \nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right)
@@ -99,6 +99,32 @@ We can now define the general method for **IACV** as:
 \]
 
 where $G^{(t-1)}_{-i} = \nabla_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} g(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right)$.
+
+**** Gradient Descent
+
+For classic gradient descent we have $h(\theta) \equiv 0$ and $S_t \equiv [n]$. The steps of IACV reduce to a classic GD with our approximated gradient,
+
+\[
+    \tilde{\theta}_{-i}^{(t)} = \tilde{\theta}_{-i}^{(t-1)} - \alpha_t \left(\nabla_{\theta} F(\mathcal{Z}_{-i}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} F(\mathcal{Z}_{-i}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right) \right)
+\]
+
+**** Stochastic Gradient Descent
+
+For stochastic gradient descent we have $h(\theta) \equiv 0$ and $S_t \subset [n]$. The steps of IACV reduce to,
+
+\[
+    \tilde{\theta}_{-i}^{(t)} = \tilde{\theta}_{-i}^{(t-1)} - \alpha_t \left(\nabla_{\theta} F(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} F(\mathcal{Z}_{S_{t \setminus \{i\}}}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right) \right)
+\]
+
+**** Proximal Gradient Descent
+
+For proximal gradient descent we have a $h(\theta)$ which is not differentiable and $S_t \equiv [n]$. The steps of IACV reduce to the proximal GD problem,
+
+\[
+    \tilde{\theta}^{(t)}_{-i} = \arg\min_{\theta} \left\{ \frac{1}{2 \alpha_t} \| \theta - \theta^\prime \| + h(\theta) \right\} \quad \text{where } \theta^\prime = \tilde{\theta}^{(t-1)}_{-i} - \alpha_t G^{(t-1)}_{-i}
+\]
+
+where $G^{(t-1)}_{-i} = \nabla_{\theta} g(\mathcal{Z}_{S_{-i}}; \hat{\theta}^{(t-1)}) + \nabla^2_{\theta} g(\mathcal{Z}_{S_{-i}}}; \hat{\theta}^{(t-1)}) \left( \hat{\theta}_{-i}^{(t-1)} - \hat{\theta}^{(t-1)}  \right)$.
 
 
 * Approximate Cross Validation in High Dimensions

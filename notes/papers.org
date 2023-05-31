@@ -6,6 +6,11 @@
 - [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]])
 - [[pdf:~/Downloads/DataRemoval.pdf][Algorithms that Approximate Data Removal]]
 
+  L1 sparse.
+  Neural networks.
+  Is it better than validation for costly operations?
+  Stopping criterion based on IACV.
+
 * High Dimensional Statistics
 - [[https://en.wikipedia.org/wiki/High-dimensional_statistics][High Dimensional Statistics (Wikipedia)]]
 - [[https://www.youtube.com/watch?v=ftPIYD8rEIY][STAT 200C: High Dimensional Statistics]]

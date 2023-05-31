@@ -1,8 +1,7 @@
 #+STARTUP: latexpreview
 #+title: Convex Optimisation by Ryan Tibshirani
 
-* Lecture 1 (Convex Problems)
-
+* Convex Problems
 A convex optimisation is of the form
 
 \begin{align*}
@@ -83,4 +82,114 @@ Strong convexity implies strict convexity which therefore applies convexity.
   - $l_p$ norms $\|x\|_p = \left(\sum_{i=1}^n x_p^i\right)^{(1/p)}$ for $p \geq 1$
   - Operator and trace norms $\|X\|_{\text{op}} = \sigma_1(X)$ and $\|X\|_{\text{tr}} = \sum_{i=1}^r \sigma_r(X)$.
 
-* Lecture 2
+* Gradient Descent
+Also called first-order methods as they only use first-order information (i.e the gradient).
+
+Consider a basic unconstrained, smooth and convex optimisation
+
+\[
+    \min_x f(x)
+\]
+
+we assume things about the function $f$:
+- $f$ is convex and differentiable
+- $\text{dom}(f) = \mathbb{R}^n$ i.e it has full domain
+- We also assume that a solution exists. We denote the optimal value $f^* = \min_x f(x)$ and its solution $x*$.
+
+A general gradient descent algorithm is defined as follows:
+1. Choose an initial point $x^{(0)} \in \mathbb{R}^n$.
+2. Repeat $x^{(k)} = x^{(k-1)} - t_k \cdot \nabla f(x^{(k-1)})$.
+3. Stop at some criterion.
+
+** Interpretation
+The second order Taylor expansion of $f$ centred around $x$ gives us:
+\[
+    f(y) \approx f(x) + \nabla f(x)^T (y - x) +  \frac{1}{2} (y - x) \nabla^2 f(x) (y - x)
+\]
+
+If we consider the quadratic approximation of $f$ by replacing $\nabla^2 f(x)$ by $\frac{1}{t} I$, we have
+
+\begin{align*}
+    f(y) &\approx f(x) + \nabla f(x)^T (y - x) +  \frac{1}{t} (y - x)^T (y - x) \\
+    &\approx f(x) + \nabla f(x)^T (y - x) +  \frac{1}{t} \|(y - x)\|_2^2 \\
+\end{align*}
+
+As this is a convex quadratic, we can minimise by finding where it's gradient is zero.
+
+\[
+    \frac{\partial f(y)}{\partial y} = \nabla f(x) + \frac{1}{2t} (y - x)
+\]
+
+Setting this to zero we get,
+
+
+\begin{align*}
+    \nabla f(x) + \frac{1}{2t} (y - x) = 0 \\
+    y = x - 2t \cdot \nabla f(x) \\
+\end{align*}
+
+this is our gradient descent update rule. Intuitively, we are finding the minimum $y$ which comes next in the quadratic approximation.
+
+The quadratic approximation is essentially just a sum of two terms:
+- A linear approximation in $f(x) + \nabla f(x)^T (y-x)$
+- A proximity term in $\|y - x\|^2$ with weight $\frac{1}{2t}$
+
+** Step Sizes
+*** Fixed Step Size
+The simplest strategy is to take a fixed $t_k$ or $\eta$. The main problems are:
+- A large $t$ means overstepping and possible divergence
+- A small $t$ means very slow convergence
+
+Picking a fixed step size comes down to trial and error, finding one which is **just right**.
+
+*** Backtracking Line Search
+One alternative is to use an adaptive step size which is guessed at each iteration based on some  heuristic. A method of doing this is backtracking line search.
+
+It works as follows:
+1. Fix parameters $0 < \beta < 1$ and $0 < \alpha \leq \frac{1}{2}$
+2. At each iteration of gradient descent, start with $t = t_0$ and while
+
+   \[
+    f(x - t \nabla f(x)) > f(x) - \alpha t \|\nabla f(x)\|_2^2
+   \]
+
+   reduce $t = \beta t$, otherwise perform the gradient descent update.
+
+** Convergence Analysis
+
+*** Gradient Descent Convergence
+A convergence rate tells us how quickly an algorithm will converge. We assume that $f$ is convex and differentiable, with $\text{dom}(f) = \mathbb{R}^n$ and additionally
+
+\[
+    \|\nabla f(x) - \nabla f(y)\|_2 \leq L \|x-y\|_2 \text{ for any } x, y
+\]
+
+we are essentially saying that if $f$ has two derivatives, the largest eigenvalue of the Hessian is at most $L$.
+
+If the previous conditions are true, then the following theorem holds:
+
+Gradient descent with $t \leq \frac{1}{L}$ satisfies,
+
+
+\[
+    f(x^{(k)}) - f^* \leq \frac{\|x^{(0)} - x^*\|_2^2}{2tk}
+\]
+
+with the same result holding for backtracking, with $t$ replaced by $\beta/L$. This condition essentially means that the distance between the current value and the optimal value is bounded by the distance between their arguments, scaled by the number of iterations and the step size. Here, $x*$ is just **a** solution to the optimisation problem.
+
+The gradient has convergence rate $O(1/k)$, (i.e it finds an $\epsilon$ suboptimal point in $O(1/\epsilon)$ iterations).
+
+*** Gradient Descent Convergence under Strong Convexity
+If $f$ is strongly convex, (i.e $f(x) - \frac{m}{2} \|x\|^2_2$ for $m > 0$), we can derive a tighter bound.
+
+Assuming Lipschitz gradient, along with strong convexity, the following theorem holds for gradient descent with fixed step size $t \leq 2/(m + L)$,
+
+\[
+    f(x^{(k)} - x^*) \leq \gamma^k \frac{L}{2} \|x^{(0)} - x^*\|_2^2
+\]
+
+where $0 < \gamma < 1$.
+
+We have a much faster convergence here, $O(\gamma^k)$, therefore we find an $\epsilon$ suboptimal point in $O(\log(1/\epsilon))$ iterations.
+
+* Subgradients
