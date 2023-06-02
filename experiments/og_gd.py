@@ -2,21 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-
-def sample_from_logreg(p=20, n=500):
-    X = np.random.normal(0, 1, size=(n, p))  # sample (n, p) from standard normal
-
-    theta_star = np.zeros(p).reshape(-1, 1)
-    theta_star[np.random.choice(p, 5)] = np.random.normal(0, 1)
-
-    probs = np.exp(X @ theta_star) / (np.exp(X @ theta_star) + 1)
-    y = np.zeros(n)
-
-    for i in range(0, n):
-        y[i] = np.random.binomial(1, probs[i])
-
-    return (X, theta_star, y)
+from sampler import sample_from_logreg
 
 
 def l(X, y, theta):
@@ -77,6 +63,10 @@ def run_sim(n, p, n_iter=250):
                 X[i].reshape(1, -1), [y[i]], theta, lbd=lbd_v
             )
 
+            # print(
+            #    f"sums : {np.sum(f_grad)}, {np.sum(f_hess)}, {np.sum(grad_minus_i)}, {np.sum(hess_minus_i)}"
+            # )
+
             theta_cv[i] = (
                 theta_cv[i]
                 - alpha_t * grad_minus_i
@@ -104,6 +94,7 @@ def run_sim(n, p, n_iter=250):
         err_approx["IACV"][t] = np.mean(
             np.linalg.norm(theta_cv - theta_true, 2, axis=1)
         )
+
         err_approx["NS"][t] = np.mean(np.linalg.norm(theta_ns - theta_true, 2, axis=1))
         err_approx["IJ"][t] = np.mean(np.linalg.norm(theta_ij - theta_true, 2, axis=1))
         err_approx["hat"][t] = np.mean(np.linalg.norm(theta - theta_true, 2, axis=1))
