@@ -51,11 +51,23 @@ def run_sim(n, p, n_iter=250):
     }
 
     for t in range(0, n_iter):
-        f_grad = torch.autograd.grad(F(X, y, theta, lbd_v), theta)[0]
-        f_hess = torch.func.hessian(F_z)(theta, lbd_v)
+        # TODO use vmap for per-sample gradient (https://pytorch.org/functorch/nightly/notebooks/per_sample_grads.html)
+        f_grad = torch.autograd.grad(
+            F(X, y, theta, lbd_v), theta, create_graph=False, retain_graph=False
+        )[0]
+
+        f_hess = torch.nan_to_num(
+            jacrev(jacrev(F_z, argnums=0), argnums=0)(theta, lbd_v)
+        )
 
         for i in range(0, n):
-            grad_Z_i = torch.autograd.grad(F(X[i], y[i], theta, lbd_v), theta)[0]
+            grad_Z_i = torch.autograd.grad(
+                F(X[i], y[i], theta, lbd_v),
+                theta,
+                create_graph=False,
+                retain_graph=False,
+            )[0]
+
             hess_Z_i = torch.nan_to_num(
                 jacrev(jacrev(F, argnums=2), argnums=2)(X[i], y[i], theta, lbd_v)
             )
@@ -80,11 +92,13 @@ def run_sim(n, p, n_iter=250):
                         lbd_v,
                     ),
                     theta_true[i],
+                    create_graph=False,
+                    retain_graph=False,
                 )[0]
             )
 
-            theta_ns[i] = theta + torch.inverse(hess_minus_i) @ grad_Z_i
-            theta_ij[i] = theta + torch.inverse(f_hess) @ grad_Z_i
+            theta_ns[i] = theta + torch.linalg.pinv(hess_minus_i) @ grad_Z_i
+            theta_ij[i] = theta + torch.linalg.pinv(f_hess) @ grad_Z_i
 
         # actually update theta
         theta = theta - alpha * f_grad
