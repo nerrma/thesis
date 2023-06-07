@@ -51,6 +51,7 @@ def run_sim(n, p, n_iter=250):
     hess_F = jacrev(jacrev(F_mod))
 
     mask = ~torch.diag(torch.ones(n, dtype=torch.bool))
+    mask = ~mask
 
     for t in range(0, n_iter):
         # TODO use vmap for per-sample gradient (https://pytorch.org/functorch/nightly/notebooks/per_sample_grads.html)
@@ -74,8 +75,8 @@ def run_sim(n, p, n_iter=250):
         )
 
         for i in range(n):
-            theta_true.unbind()[i] = theta_true.unbind()[i] - alpha * nabla_F(
-                theta_true.unbind()[i],
+            theta_true[i] = theta_true[i] - alpha * nabla_F(
+                theta_true[i],
                 X[mask[i, :]],
                 y[mask[i, :]],
                 lbd_v,
