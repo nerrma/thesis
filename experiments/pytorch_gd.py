@@ -37,6 +37,9 @@ def run_sim(n, p, n_iter=250):
     theta_true = [
         torch.zeros(p, requires_grad=True, device=device)
     ] * n  # grad for first-order gd
+    # theta_true = torch.nested.nested_tensor(
+    #    [torch.zeros(p, requires_grad=True, device=device)] * n
+    # )  # grad for first-order gd
     theta_ns = torch.zeros((n, p), device=device)
     theta_ij = torch.zeros((n, p), device=device)
 
@@ -52,50 +55,50 @@ def run_sim(n, p, n_iter=250):
 
     mask = ~torch.diag(torch.ones(n, dtype=torch.bool))
 
-    for t in range(0, n_iter):
-        # TODO use vmap for per-sample gradient (https://pytorch.org/functorch/nightly/notebooks/per_sample_grads.html)
-        f_grad = torch.autograd.grad(F_mod(theta, X, y, lbd_v), theta)[0]
-        f_hess = torch.nan_to_num(hess_F(theta, X, y, lbd_v))
+    with torch.no_grad():
+        for t in range(0, n_iter):
+            f_grad = nabla_F(theta, X, y, lbd_v)
+            f_hess = torch.nan_to_num(hess_F(theta, X, y, lbd_v))
 
-        grad_Z = torch.vmap(nabla_F, in_dims=(None, 0, 0, None))(theta, X, y, lbd_v)
-        hess_Z = torch.nan_to_num(
-            torch.vmap(hess_F, in_dims=(None, 0, 0, None))(theta, X, y, lbd_v)
-        )
-
-        grad_minus = f_grad - grad_Z
-        hess_minus = f_hess - hess_Z
-
-        vmap_matmul = torch.vmap(torch.matmul, in_dims=(0, 0))
-
-        theta_cv = (
-            theta_cv
-            - alpha_t * grad_minus
-            - alpha_t * vmap_matmul(hess_minus, (theta_cv - theta))
-        )
-
-        for i in range(n):
-            theta_true[i] = theta_true[i] - alpha * nabla_F(
-                theta_true[i],
-                X[mask[i, :]],
-                y[mask[i, :]],
-                lbd_v,
+            grad_Z = torch.vmap(nabla_F, in_dims=(None, 0, 0, None))(theta, X, y, lbd_v)
+            hess_Z = torch.nan_to_num(
+                torch.vmap(hess_F, in_dims=(None, 0, 0, None))(theta, X, y, lbd_v)
             )
 
-        theta_ns = theta + vmap_matmul(torch.linalg.pinv(hess_minus), grad_Z)
-        theta_ij = theta + torch.vmap(torch.matmul, in_dims=(None, 0))(
-            torch.linalg.pinv(f_hess), grad_Z
-        )
+            grad_minus = f_grad - grad_Z
+            hess_minus = f_hess - hess_Z
 
-        # actually update theta
-        theta = theta - alpha * f_grad
+            vmap_matmul = torch.vmap(torch.matmul, in_dims=(0, 0))
 
-        true_stack = torch.stack(theta_true)
-        err_approx["IACV"][t] = torch.mean(torch.norm(theta_cv - true_stack, 2, dim=1))
+            theta_cv = (
+                theta_cv
+                - alpha_t * grad_minus
+                - alpha_t * vmap_matmul(hess_minus, (theta_cv - theta))
+            )
 
-        err_approx["NS"][t] = torch.mean(torch.norm(theta_ns - true_stack, 2, dim=1))
+            for i in range(n):
+                theta_true[i] = theta_true[i] - alpha * nabla_F(
+                    theta_true[i], X[mask[i, :]], y[mask[i, :]], lbd_v
+                )
 
-        err_approx["IJ"][t] = torch.mean(torch.norm(theta_ij - true_stack, 2, dim=1))
+            theta_ns = theta + vmap_matmul(torch.linalg.pinv(hess_minus), grad_Z)
+            theta_ij = theta + torch.vmap(torch.matmul, in_dims=(None, 0))(
+                torch.linalg.pinv(f_hess), grad_Z
+            )
 
-        err_approx["hat"][t] = torch.mean(torch.norm(theta - true_stack, 2, dim=1))
+            # actually update theta
+            theta = theta - alpha * f_grad
+
+            true_stack = torch.stack(theta_true)
+            err_approx["IACV"][t] = torch.mean(
+                torch.norm(theta_cv - true_stack, 2, dim=1)
+            )
+            err_approx["NS"][t] = torch.mean(
+                torch.norm(theta_ns - true_stack, 2, dim=1)
+            )
+            err_approx["IJ"][t] = torch.mean(
+                torch.norm(theta_ij - true_stack, 2, dim=1)
+            )
+            err_approx["hat"][t] = torch.mean(torch.norm(theta - true_stack, 2, dim=1))
 
     return {k: v.detach().numpy() for k, v in err_approx.items()}
