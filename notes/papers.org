@@ -3,14 +3,18 @@
 * Papers
 - [[pdf:~/Downloads/09-SS054.pdf][A survey of cross-validation procedures for model selection]]
 - [[pdf:~/Downloads/IACV.pdf][Iterative Approximate Cross Validation (IACV)]] ([[file:paper_notes.org::Iterative Approximate Cross Validation][Notes]])
-- [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]])
+- [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]]) ([[https:github.com/yuetianluo/IACV/blob/main/plot.R][Code]])
 - [[pdf:~/Downloads/DataRemoval.pdf][Algorithms that Approximate Data Removal]]
+- [[https:www.ceremade.dauphine.fr/~carlier/FISTA][FISTA]]
 
-  L1 sparse.
-  Neural networks.
-  Is it better than validation for costly operations?
-  Stopping criterion based on IACV.
 
 * High Dimensional Statistics
 - [[https://en.wikipedia.org/wiki/High-dimensional_statistics][High Dimensional Statistics (Wikipedia)]]
 - [[https://www.youtube.com/watch?v=ftPIYD8rEIY][STAT 200C: High Dimensional Statistics]]
+
+* Ideas
+- L1 sparsity - only do operations on the supports (relevant features) to cut costs.
+- Neural networks as the learning task.
+  - https://github.com/amirgholami/PyHessian
+- Is it better than validation for costly operations?
+- Stopping criterion based on IACV - possibly more robust than tolerance/threshold based methods.

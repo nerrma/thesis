@@ -114,7 +114,7 @@ If we consider the quadratic approximation of $f$ by replacing $\nabla^2 f(x)$ b
     &\approx f(x) + \nabla f(x)^T (y - x) +  \frac{1}{t} \|(y - x)\|_2^2 \\
 \end{align*}
 
-As this is a convex quadratic, we can minimise by finding where it's gradient is zero.
+As this is a convex quadratic, we can minimise by finding where its gradient is zero.
 
 \[
     \frac{\partial f(y)}{\partial y} = \nabla f(x) + \frac{1}{2t} (y - x)

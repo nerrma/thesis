@@ -1,6 +1,9 @@
 #+title: Background
 
 * TODO Cross Validation
+Choosing the correct algorithm(s) with suitable hyper-parameters is a task at the core of data analysis and machine learning. In learning tasks, it is common to keep a subset of data for training and a separate (typically smaller) subset as a holdout for *testing*. The model is then trained on the training data and tested on the holdout to observe its out of sample performance.
+
+A popular method which assists practitioners in finding a solution in a seemingly endless search space is cross validation (CV).
 
 * TODO (Convex) Optimisation
 ** TODO Newton's Method
