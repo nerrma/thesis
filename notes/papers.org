@@ -18,3 +18,10 @@
   - https://github.com/amirgholami/PyHessian
 - Is it better than validation for costly operations?
 - Stopping criterion based on IACV - possibly more robust than tolerance/threshold based methods.
+
+* References
+- [[https:arxiv.org/pdf/1609.04747.pdf][Overview of GD]]
+- [[https:arxiv.org/pdf/1909.13371.pdf][GD, the ultimate optimiser]]
+- [[https:arxiv.org/pdf/1605.02214.pdf][LASSO CV high dim]]
+- https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html
+- [[file:~/Downloads/StatisticalLearningTheory.pdf][Statistical Learning Theory]]

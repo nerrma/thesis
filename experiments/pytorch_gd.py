@@ -3,7 +3,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from torch.func import jacrev, grad
+from torch.func import jacrev, jacfwd, grad
 from sampler import sample_from_logreg
 
 device = torch.device("cpu")
@@ -17,8 +17,10 @@ def pi(theta):
     return torch.norm(theta, 2)
 
 
-def F_mod(theta, X, y, lbd):
-    return torch.sum(l(X, y, theta)) + lbd * pi(theta)
+def F_mod(theta, X, y, lbd: float):
+    return torch.sum(
+        -y * (X @ theta) + torch.log(1 + torch.exp(X @ theta))
+    ) + lbd * torch.norm(theta, 2)
 
 
 def run_sim(n, p, n_iter=250):
@@ -52,6 +54,7 @@ def run_sim(n, p, n_iter=250):
 
     nabla_F = grad(F_mod)
     hess_F = jacrev(jacrev(F_mod))
+    vmap_matmul = torch.vmap(torch.matmul, in_dims=(0, 0))
 
     mask = ~torch.diag(torch.ones(n, dtype=torch.bool))
 
@@ -67,8 +70,6 @@ def run_sim(n, p, n_iter=250):
 
             grad_minus = f_grad - grad_Z
             hess_minus = f_hess - hess_Z
-
-            vmap_matmul = torch.vmap(torch.matmul, in_dims=(0, 0))
 
             theta_cv = (
                 theta_cv
