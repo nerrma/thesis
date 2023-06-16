@@ -234,3 +234,8 @@ In the case of the Infinitesimal Jackknife, we need a single matrix inversion fo
 
 *** Inability to find Inverse
 *** Poor error bounds
+
+* Statistical Learning Theory
+** General Problem Setting
+
+We want to find a mapping $f : \mathcal{X} \to \mathcal{Y}$ for an input space $\mathcal{X}$ and output space $\mathcal{Y}$. We assume that the two spaces are sampled from a joint probability distribution $P$ independently to form a dataset $D = \{(X_i, Y_i)\}_{i=1}^n$. We cannot assume the joint distribution is actually conditional since our data are typically non-deterministic.

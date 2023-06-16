@@ -25,3 +25,5 @@
 - [[https:arxiv.org/pdf/1605.02214.pdf][LASSO CV high dim]]
 - https://jax.readthedocs.io/en/latest/notebooks/thinking_in_jax.html
 - [[file:~/Downloads/StatisticalLearningTheory.pdf][Statistical Learning Theory]]
+- [[https://math.stackexchange.com/questions/471339/derivation-of-soft-thresholding-operator-proximal-operator-of-l-1-norm][Soft Thresholding Operator Derivation]]
+- [[https://arxiv.org/pdf/2104.00673.pdf][Cross Validation: what does it estimate and how well does it do it?]]
