@@ -24,7 +24,7 @@ def F_mod(theta, X, y, lbd: float):
 
 
 def run_sim(n, p, n_iter=250):
-    X, _, y = sample_from_logreg(p=p, n=n)
+    X, theta_star, y = sample_from_logreg(p=p, n=n)
 
     X = torch.Tensor(X).to(device)
     y = torch.Tensor(y).to(device)
@@ -102,4 +102,7 @@ def run_sim(n, p, n_iter=250):
             )
             err_approx["hat"][t] = torch.mean(torch.norm(theta - true_stack, 2, dim=1))
 
+    # print(torch.mean(torch.stack(theta_true), dim=1))
+    print(torch.mean(theta_cv, dim=0).detach().numpy().ravel())
+    print(theta_star.ravel())
     return {k: v.detach().numpy() for k, v in err_approx.items()}

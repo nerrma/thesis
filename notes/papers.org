@@ -3,7 +3,7 @@
 * Papers
 - [[pdf:~/Downloads/09-SS054.pdf][A survey of cross-validation procedures for model selection]]
 - [[pdf:~/Downloads/IACV.pdf][Iterative Approximate Cross Validation (IACV)]] ([[file:paper_notes.org::Iterative Approximate Cross Validation][Notes]])
-- [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]]) ([[https:github.com/yuetianluo/IACV/blob/main/plot.R][Code]])
+- [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]]) ([[https://bitbucket.org/wtstephe/sparse_appx_cv/src/master/][Code]])
 - [[pdf:~/Downloads/DataRemoval.pdf][Algorithms that Approximate Data Removal]]
 - [[https:www.ceremade.dauphine.fr/~carlier/FISTA][FISTA]]
 
@@ -27,3 +27,6 @@
 - [[file:~/Downloads/StatisticalLearningTheory.pdf][Statistical Learning Theory]]
 - [[https://math.stackexchange.com/questions/471339/derivation-of-soft-thresholding-operator-proximal-operator-of-l-1-norm][Soft Thresholding Operator Derivation]]
 - [[https://arxiv.org/pdf/2104.00673.pdf][Cross Validation: what does it estimate and how well does it do it?]]
+- [[https://proceedings.mlr.press/v108/rad20a/rad20a.pdf][Error bounds in estimating the risk using LOOCV in high dims]]
+- [[https://jmlr.csail.mit.edu/papers/volume11/shalev-shwartz10a/shalev-shwartz10a.pdf][Learnability, Stability and Uniform Convergence]]
+- [[https://hunch.net/~jl/projects/prediction_bounds/progressive_validation/coltfinal.pdf][Bounds for K-fold cross validation]]
