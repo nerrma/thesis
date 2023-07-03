@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 from jax import vmap, jacrev, jacfwd, grad, jit, pmap, profiler
 from functools import partial
 import jax.numpy as jnp
+from jaxopt.prox import prox_lasso
 from sampler import sample_from_logreg
 
 import jax
 
-jax.config.update("jax_platform_name", "gpu")
+jax.config.update("jax_platform_name", "cpu")
 
 
 def l(X, y, theta):
@@ -29,14 +30,14 @@ def run_sim(n, p, n_iter=250):
 
     lbd_v = 1e-6 * n
 
-    theta = jnp.zeros(p)
+    theta = jnp.ones(p)
     alpha = 0.5 / n
     alpha_t = alpha
 
-    theta_cv = jnp.zeros((n, p))
-    theta_true = [jnp.zeros(p)] * n
-    theta_ns = jnp.zeros((n, p))
-    theta_ij = jnp.zeros((n, p))
+    theta_cv = jnp.ones((n, p))
+    theta_true = [jnp.ones(p)] * n
+    theta_ns = jnp.ones((n, p))
+    theta_ij = jnp.ones((n, p))
 
     err_approx = {
         "IACV": np.zeros(n_iter),
@@ -63,10 +64,11 @@ def run_sim(n, p, n_iter=250):
         grad_minus = f_grad - grad_Z
         hess_minus = f_hess - hess_Z
 
-        theta_cv = (
+        theta_cv = prox_lasso(
             theta_cv
             - alpha_t * grad_minus
-            - alpha_t * vmap_matmul(hess_minus, (theta_cv - theta))
+            - alpha_t * vmap_matmul(hess_minus, (theta_cv - theta)),
+            lbd_v,
         )
 
         # theta_ns = theta + jnp.nan_to_num(
@@ -77,19 +79,24 @@ def run_sim(n, p, n_iter=250):
         #    nan=lbd_v,
         # )
 
-        # for i in range(n):
-        #    theta_true[i] = theta_true[i] - alpha * jnp.nan_to_num(
-        #        nabla_F(
-        #            theta_true[i],
-        #            X[mask[i, :]],
-        #            y[mask[i, :]],
-        #            lbd=lbd_v,
-        #        ),
-        #        nan=lbd_v,
-        #    )
+        for i in range(n):
+            theta_true[i] = prox_lasso(
+                theta_true[i]
+                - alpha
+                * jnp.nan_to_num(
+                    nabla_F(
+                        theta_true[i],
+                        X[mask[i, :]],
+                        y[mask[i, :]],
+                        lbd=lbd_v,
+                    ),
+                    nan=lbd_v,
+                ),
+                lbd_v,
+            )
 
         # actually update theta
-        theta = theta - alpha * f_grad
+        theta = prox_lasso(theta - alpha * f_grad, lbd_v)
 
         true_stack = jnp.stack(theta_true)
         err_approx["IACV"][t] = jnp.mean(
@@ -103,4 +110,5 @@ def run_sim(n, p, n_iter=250):
         )
         err_approx["hat"][t] = jnp.mean(jnp.linalg.norm(theta - true_stack, 2, axis=1))
 
+    print(theta)
     return err_approx

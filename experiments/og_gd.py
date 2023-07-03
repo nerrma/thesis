@@ -52,7 +52,6 @@ def run_sim(n, p, n_iter=250):
     for t in range(0, n_iter):
         f_grad = nabla_F(X, y, theta, lbd=lbd_v)
         f_hess = hess_F(X, y, theta, lbd=lbd_v)
-        # print(f"loss : {F(X, y, theta)}")
 
         for i in range(0, n):
             hess_minus_i = f_hess - hess_F(
@@ -63,30 +62,26 @@ def run_sim(n, p, n_iter=250):
                 X[i].reshape(1, -1), [y[i]], theta, lbd=lbd_v
             )
 
-            # print(
-            #    f"sums : {np.sum(f_grad)}, {np.sum(f_hess)}, {np.sum(grad_minus_i)}, {np.sum(hess_minus_i)}"
-            # )
-
             theta_cv[i] = (
                 theta_cv[i]
                 - alpha_t * grad_minus_i
                 - alpha_t * hess_minus_i @ (theta_cv[i] - theta)
             )
 
-            theta_true[i] = theta_true[i] - alpha * nabla_F(
-                np.delete(X, (i), axis=0),
-                np.delete(y, (i), axis=0),
-                theta_true[i],
-                lbd=lbd_v,
-            )
+            # theta_true[i] = theta_true[i] - alpha * nabla_F(
+            #    np.delete(X, (i), axis=0),
+            #    np.delete(y, (i), axis=0),
+            #    theta_true[i],
+            #    lbd=lbd_v,
+            # )
 
-            theta_ns[i] = theta + np.linalg.inv(hess_minus_i) @ nabla_F(
-                X[i].reshape(1, -1), [y[i]], theta, lbd=lbd_v
-            )
+            # theta_ns[i] = theta + np.linalg.inv(hess_minus_i) @ nabla_F(
+            #    X[i].reshape(1, -1), [y[i]], theta, lbd=lbd_v
+            # )
 
-            theta_ij[i] = theta + np.linalg.inv(f_hess) @ nabla_F(
-                X[i].reshape(1, -1), [y[i]], theta, lbd=lbd_v
-            )
+            # theta_ij[i] = theta + np.linalg.inv(f_hess) @ nabla_F(
+            #    X[i].reshape(1, -1), [y[i]], theta, lbd=lbd_v
+            # )
 
         # actually update theta
         theta = theta - alpha * f_grad

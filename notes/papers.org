@@ -4,6 +4,7 @@
 - [[pdf:~/Downloads/09-SS054.pdf][A survey of cross-validation procedures for model selection]]
 - [[pdf:~/Downloads/IACV.pdf][Iterative Approximate Cross Validation (IACV)]] ([[file:paper_notes.org::Iterative Approximate Cross Validation][Notes]])
 - [[file:~/Downloads/ApproxCVHighDim.pdf][Approximate Cross-Validation in High Dimensions]] ([[file:paper_notes.org::Approximate Cross Validation in High Dimensions][Notes]]) ([[https://bitbucket.org/wtstephe/sparse_appx_cv/src/master/][Code]])
+- [[pdf:~/Downloads/ApproxWilson.pdf][Approximate Cross Valdiation: Guarantees for Model Assesment and Selection]] ([[https://github.com/aswilson07/ApproximateCV][Code]])
 - [[pdf:~/Downloads/DataRemoval.pdf][Algorithms that Approximate Data Removal]]
 - [[https:www.ceremade.dauphine.fr/~carlier/FISTA][FISTA]]
 
