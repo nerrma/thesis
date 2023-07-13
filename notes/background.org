@@ -10,5 +10,7 @@ A popular method which assists practitioners in finding a solution in a seemingl
 ** TODO Proximal Gradient Descent
 
 * TODO High Dimensional Statistics
-** TODO LASSO
-** IDEA Matrix Completion
+** TODO l_1 reg
+- Geometry of l1 norm, why l1 is sparse
+- Why sparsity is desirable (aside on high dim problems)
+- Theory of accuracy bounds and support recovery

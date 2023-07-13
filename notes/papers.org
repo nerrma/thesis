@@ -19,6 +19,10 @@
   - https://github.com/amirgholami/PyHessian
 - Is it better than validation for costly operations?
 - Stopping criterion based on IACV - possibly more robust than tolerance/threshold based methods.
+- Jackknife
+- Lasso importance of lambda
+- SVM solved using SGD, add IACV (15.5 in Shai-Shalev)
+- Use example for CV
 
 * References
 - [[https:arxiv.org/pdf/1609.04747.pdf][Overview of GD]]
