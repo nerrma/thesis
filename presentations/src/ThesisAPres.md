@@ -5,9 +5,13 @@ header-includes: |
 	 \usepackage{physics}
 	 \usepackage{hyperref}
 	 \usepackage{graphicx}
-	\graphicspath{ {./images/} }
+	 \usepackage{epstopdf}
+	\graphicspath{ {../figures/} }
 	\DeclareMathOperator*{\argmax}{arg\,max}
 	\DeclareMathOperator*{\argmin}{arg\,min}
+	\newcommand{\nbTh}{\nabla_{\theta}}
+	\newcommand{\Rreg}{R_{\text{reg}}}
+	\newcommand{\Remp}{R_{\text{emp}}}
 title: "Iterative Approximate Cross Validation in High Dimensions"
 author: "Sina Alsharif"
 theme: "Frankfurt"
@@ -100,6 +104,174 @@ The definition of leave-one-out (LOO) regularised empirical risk is,
 	R_{\text{reg}}(\theta; D_{-j}) = \sum_{i=1,\,i \neq j}^n \ell(\theta; D_i) + \lambda \pi(\theta)
 \end{align*}
 where we leave out a point with index $j$ for this experiment.
+
+## Methods for ACV
+
+There are three main methods for ACV we will discuss. 
+
+- Newton Step (``NS'')
+- Infinitesimal Jackknife (``IJ'')
+- Iterative Approximate Cross Validation (``IACV'')
+
+both NS and IJ are existing methods, and IACV is a new proposed method which we aim to adapt and extend. \pause 
+
+We will brush over the theory for NS and IJ in the following section, taking a closer look at the derivation of IACV and its proposed improvements on the former methods.
+
+It is important to note that these methods are only used when the learning task is solved through an iterative method, where the ACV steps are tacked on to the end of an iteration.
+
+## Newton Step
+We can redefine the definition for (regularised) empirical risk for a LOOCV experiment excluding a point with index $j$,
+\begin{align*}
+	R_{\text{reg}}(\theta; D_{-j}) = \sum_{i=1}^n \ell(\theta; D_i) - \ell(\theta; D_j) + \lambda \pi(\theta)
+\end{align*}
+
+\pause
+The Jacobian of this form is,
+\begin{align*}
+    \nabla_{\theta} R_{\text{reg}}(\theta; D_{-j}) = \sum_{i=1}^n \nabla_{\theta} \ell(\theta; D_i) - \nabla_{\theta} \ell(\theta; D_j) + \lambda \nabla_{\theta} \pi(\theta)
+\end{align*}
+
+---
+
+Therefore the Hessian becomes,
+\begin{align*}
+    \nabla_{\theta}^2 R_{\text{reg}}(\theta; D_{-j}) = H(\theta; D) - \nabla_{\theta}^2 \ell(\theta, D_{j}) \\
+    \text{where } \quad H(\theta; D) = \nabla_{\theta}^2 \left(\sum_{i=1}^n \ell(\theta; D_i)\right) + \lambda \nabla_{\theta}^2\pi(\theta)
+\end{align*}
+
+\pause
+
+Note that we assume $\ell(\mathord{\cdot})$ and $\pi(\mathord{\cdot})$ are both continous and twice-differentiable functions. \pause
+
+Now we can apply Newton's method for optimisation to take a ``step'' towards the LOOCV iterate $\hat{\theta}_{-j}$ by starting at the learned parameter $\hat{\theta}$.
+
+---
+
+We define the approximation of a LOOCV iterate as $\tilde{\theta}_{-j}$, where
+\begin{align*}
+    \tilde{\theta}_{-j} &= \hat{\theta} - \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-j})\right)^{-1} \left(\nbTh R_{\text{reg}}(\hat{\theta}; D) - \nbTh R_{\text{reg}}(\hat{\theta}; D_j)\right) \\
+    &= \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-j})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_j)
+\end{align*}
+the second line follows by the definition of $\hat{\theta}$. Note here, we also assume that the (modified) Hessian $\left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-j})\right)$ is invertible.
+
+\pause
+
+For discussion, the standard notation we'll use for the NS method is,
+\begin{align*}
+    \tilde{\theta}^{-i}_{\text{NS}} = \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-i})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_i)
+\end{align*}
+
+## Infinitesimal Jackknife
+
+An alternative method for ACV is the infinitesimal Jackknife (IJ). The complete derivation has been omitted for the sake of brevity, however the general idea is to use a *weighted* loss (i.e $w_i \ell(\theta; D_i)$ where $w \in \mathbb{R}^+$) and perform a first-order Taylor expansion around the weights to approximate LOOCV. 
+
+The final form derived for this case is
+\begin{align*}
+    \tilde{\theta}^{-i}_{\text{IJ}} = \hat{\theta} + (H(\hat{\theta}; D))^{-1} \nabla_\theta R_{\text{reg}}(\hat{\theta}; D_i)
+\end{align*}
+where we again make the same assumptions as in NS (loss and regularisation are continuously twice-differentiable, $H$ is invertible). \pause This method has a computational advantage over NS, as we only need to calculate and invert $H(\hat{\theta}; D)$ once, rather than $n$ times.
+
+## Iterative Approximate Cross Validation
+A recently proposed method for ACV is Iterative Approximate Cross Validation (IACV) and aims to improve on existing methods by relaxing assumptions and providing accurate approximation before convergence of the main iterative method.
+
+We again solve the main learning task through an iterative method, where the updates are (for GD and SGD)
+\begin{align*}
+    \hat{\theta}^{(k)} = \hat{\theta}^{(k-1)} - \alpha_k \nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k})
+\end{align*}
+where $S_k \subseteq [n]$ is a subset of indices and $\alpha_k$ is a learning rate taken for an iteration $k$. For classic GD, $S_k \equiv [n]$ and can be variable for SGD. \pause
+
+The explicit optimisation step LOOCV iterate excluding a point $i$ is defined as,
+\begin{align*}
+    \hat{\theta}^{(k)}_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})
+\end{align*}
+this step is what we aim to approximate.
+
+--- 
+
+The main computational burden in the LOOCV optimisation step is calculating the Jacobian $\nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})$ for $n$ points. \pause If we use a second-order expansion of the Jacobian for $\hat{\theta}^{(k-1)}_{-i}$ centered around the estimate $\hat{\theta}^{(k-1)}$, we can approximate the Jacobian for this step. \pause Here,
+\begin{align*}
+    \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i}) \approx \nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)
+\end{align*}
+is the estimate for the Jacobian.
+
+\pause
+Therefore, the IACV updates for GD and SGD become,
+\begin{align*}
+    \tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+\end{align*}
+
+---
+
+The main difference (from NS and IJ) is that we can define an ACV update rule for proximal gradient descent. \pause If we define a general update rule for LOOCV proximal gradient descent as,
+\begin{align*}
+    \hat{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
+    &\text{where } \theta^\prime_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \ell(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})
+\end{align*}
+using similar logic as in GD/SGD on the differentiable part of the regularised risk, we get IACV updates of, \pause
+\begin{align*}
+    \tilde{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
+    \text{where }& \theta^\prime_{-i} = \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left((\ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+\end{align*}
+
+---
+
+It may seem counter-intuitive that we swap a simple Jacobian for a Jacobian and a Hessian in the approximation step. \pause We have!
+
+\begin{center}
+	\begin{tabular}{c|c|c}
+		& IACV & Exact LOOCV \\
+		\hline
+		GD & $n(A_p + B_p) + np^2$ & $n^2 A_p + np$ \\
+		SGD & $K(A_p + B_p) + np^2$ & $nKA_p + np$ \\
+		ProxGD & $n(A_p + B_p + D_p) + np^2$ & $n^2A_p + nD_p + np$ \\
+	\end{tabular}
+\end{center}
+where $A_p$ is one evaluation of the Jacobian, $B_p$ is one evaluation of the Hessian, $D_p$ is one evaluation of the proximal operator and $K$ is the size of the subset used for SGD \footnote{Luo \& Barber (2023)}. \pause The time complexities here however, are not representative of empirics as the Jacobian and Hessian for IACV can be easily vectorised since we hold the argument $\hat{\theta}^{(k-1)}$ fixed.
+
+\pause
+In terms of space IACV uses $O(np + p^2)$ space, where as exact LOOCV uses $O(np)$ space. The orders of space are the similar when $p \ll n$, however can be an issue in higher dimensional problems (more discussion on this later).
+
+## Problems In High Dimensions
+
+The aforementioned ACV methods face problems in higher dimensions. For IJ and NS, the main problems are \footnote{Stephenson \& Broderick (2020)}
+
+- No form for $\ell_1$ methods used in high dimensions
+- Time complexity breakdown (especially for Hessian inversion) 
+- A breakdown of accuracy
+
+We assume a similar theme of time (and memory) complexity issues with IACV in higher dimensions. A loss of accuracy however, is unclear and needs further investigation.
+
+\pause
+Current error bounds for IACV do assume $n \leq p$, though preliminary empirics show that accuracy *may* not suffer greatly.
+
+## Existing Solutions for High Dimensional Problems
+
+There are varying solutions for both NS and IJ for higher dimensional problems. Some solutions turn to smoothing $\ell_1$ to ensure differentiability and randomised solvers to solve for the inverse of the Hessian. \pause However, the main solution to look to is one outlined in (Stephenson \& Broderick (2020)). \pause
+
+The main idea of this solution is to work in the ``effective dimension'' or support of the data. \pause This reduces both computational complexity and possible issues of inversion. We first run an $\ell_1$ learning task, and run ACV on the support at each iteration. \pause If we define the (estimated) support of our data as $S$, the updates for NS become,
+\begin{align*}
+    \left[\tilde{\theta}^{-i}_{\text{NS}}\right]_j = 
+    \begin{cases}
+    0 & \text{when } \theta_j = 0 \\
+    \hat{\theta}_j + \left[\left(H_S(\hat{\theta}_S; D) - \nbTh^2 \ell_S(\hat{\theta}_S; D_{-i})\right)^{-1} \nbTh \ell_S(\hat{\theta}_S; D_i)\right]_j & \text{otherwise}
+    \end{cases}
+\end{align*}
+where we only evaluate the terms in the support.
+
+---
+
+Similarly, the ``sparse ACV'' updates for IJ becomes,
+\begin{align*}
+    \left[\tilde{\theta}^{-i}_{\text{IJ}}\right]_j = 
+    \begin{cases}
+    0 & \text{when } \theta_j = 0 \\
+    \hat{\theta}_j + \left[\left(H_S(\hat{\theta}_S; D)\right)^{-1} \nbTh \ell_S(\hat{\theta}_S; D_i)\right]_j & \text{otherwise}
+    \end{cases}
+\end{align*}
+
+\pause
+Alongside computational benefits, reducing the dimension of the data used for ACV from $n$ to $|S|$ also allows for more accurate approximation in higher dimensions (given we make a few assumptions on the data).
+
 
 # Preliminary Work
 # Future Plans
