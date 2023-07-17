@@ -2,11 +2,12 @@
 header-includes: |
 	\usepackage{amsmath}
 	 \usepackage{fancyhdr}
+	 \usepackage{pgfplots}
 	 \usepackage{physics}
 	 \usepackage{hyperref}
 	 \usepackage{graphicx}
 	 \usepackage{epstopdf}
-	\graphicspath{ {../figures/} }
+	\graphicspath{ {./figures/} }
 	\DeclareMathOperator*{\argmax}{arg\,max}
 	\DeclareMathOperator*{\argmin}{arg\,min}
 	\newcommand{\nbTh}{\nabla_{\theta}}
@@ -248,12 +249,12 @@ Current error bounds for IACV do assume $n \leq p$, though preliminary empirics 
 
 There are varying solutions for both NS and IJ for higher dimensional problems. Some solutions turn to smoothing $\ell_1$ to ensure differentiability and randomised solvers to solve for the inverse of the Hessian. \pause However, the main solution to look to is one outlined in (Stephenson \& Broderick (2020)). \pause
 
-The main idea of this solution is to work in the ``effective dimension'' or support of the data. \pause This reduces both computational complexity and possible issues of inversion. We first run an $\ell_1$ learning task, and run ACV on the support at each iteration. \pause If we define the (estimated) support of our data as $S$, the updates for NS become,
+The main idea of this solution is to work in the ``effective dimension'' or support of the data. \pause This reduces both computational complexity and possible issues of inversion. We first run an $\ell_1$ learning task, and run ACV on the support at each iteration. \pause If we define the estimated support of our data as $\hat{S}$, the updates for NS become,
 \begin{align*}
     \left[\tilde{\theta}^{-i}_{\text{NS}}\right]_j = 
     \begin{cases}
-    0 & \text{when } \theta_j = 0 \\
-    \hat{\theta}_j + \left[\left(H_S(\hat{\theta}_S; D) - \nbTh^2 \ell_S(\hat{\theta}_S; D_{-i})\right)^{-1} \nbTh \ell_S(\hat{\theta}_S; D_i)\right]_j & \text{otherwise}
+    0 & \text{when } \hat{\theta}_j = 0 \\
+    \hat{\theta}_j + \left[\left(H_{\hat{S}}(\hat{\theta}_{\hat{S}}; D) - \nbTh^2 \ell_{\hat{S}}(\hat{\theta}_{\hat{S}}; D_{-i})\right)^{-1} \nbTh \ell_{\hat{S}}(\hat{\theta}_{\hat{S}}; D_i)\right]_j & \text{otherwise}
     \end{cases}
 \end{align*}
 where we only evaluate the terms in the support.
@@ -264,14 +265,111 @@ Similarly, the ``sparse ACV'' updates for IJ becomes,
 \begin{align*}
     \left[\tilde{\theta}^{-i}_{\text{IJ}}\right]_j = 
     \begin{cases}
-    0 & \text{when } \theta_j = 0 \\
-    \hat{\theta}_j + \left[\left(H_S(\hat{\theta}_S; D)\right)^{-1} \nbTh \ell_S(\hat{\theta}_S; D_i)\right]_j & \text{otherwise}
+    0 & \text{when } \hat{\theta}_j = 0 \\
+    \hat{\theta}_j + \left[\left(H_{\hat{S}}(\hat{\theta}_{\hat{S}}; D)\right)^{-1} \nbTh \ell_{\hat{S}}(\hat{\theta}_{\hat{S}}; D_i)\right]_j & \text{otherwise}
     \end{cases}
 \end{align*}
 
 \pause
-Alongside computational benefits, reducing the dimension of the data used for ACV from $n$ to $|S|$ also allows for more accurate approximation in higher dimensions (given we make a few assumptions on the data).
-
-
+Alongside computational benefits, reducing the dimension of the data used for ACV from $n$ to $|\hat{S}|$ also allows for more accurate approximation in higher dimensions (given we make a few assumptions on the data). \pause \pause A major condition needed for this to work is the *incoherence condition* (also known as mutual incoherence). Where,
+\begin{align*}
+\max_{j \in S^C }\|(X_S^T X_S)^{-1} X_S^T X_j\|_1 \leq 1 - \gamma
+\end{align*}
+for some $\gamma > 0$. This condition essentially uses the regression coefficients of $X_S$ onto $X_j$ to measure the alignment of the column $X_j$ on $X_S$. In the ideal case, the columns in $S^C$ are orthogonal to the columns in $S$ ($\gamma = 1$) and we can recover the support (given more assumptions).
+	
 # Preliminary Work
+
+I have already written working code recreating the experiments in the original IACV paper. 
+
+:::: columns
+::: column
+\begin{figure}
+    \centering
+	\vspace{5.75mm}
+    \scalebox{0.65}{\input{figures/err_approx_250.pgf}}
+    \caption{My implementation (run for less iterations).}
+\end{figure}
+:::
+::: column
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.45]{figures/err_approx_250_iacv.png}
+    \caption{Experiment in the paper.}
+\end{figure}
+:::
+::::
+
+---
+
+I've implemented the experiments using explicit gradient calculation in Numpy and using automatic differentiation in JAX. \pause The JAX version also allows for experiments to be run on the GPU for faster processing - useful when data is large or in higher dimensions. I've also written a version in Pytorch (slightly slower than JAX due to inherent overhead) which can also work on the GPU. 
+
+\pause
+
+The JAX version specifically makes use of explicit vectorisation in approximate CV and shows a large possible empirical speed gain over explicit LOOCV due to the semantics of JAX ```vmap```. Also, the functions for both the Jacobian and Hessian can be Just In Time (JIT) compiled for a boost in speed.
+
+\pause
+
+There are also experimental subsets of Pytorch and JAX implementing sparse tensors to save space in high dimensional tasks, which will serve helpful to look into.
+
+---
+
+A small example of JAX features applied to IACV,
+
+~~~{.python}
+def F(theta, X, y, lbd):
+    return jnp.sum(l(X, y, theta)) + lbd * pi(theta)
+
+nabla_F = jit(grad(F))
+hess_F = jit(jacfwd(jacrev(F)))
+
+grad_per_sample = jit(vmap(nabla_F, in_axes=(None, 0, 0, None)))
+hess_per_sample = jit(vmap(hess_F, in_axes=(None, 0, 0, None)))
+vmap_matmul = jit(vmap(jnp.matmul, in_axes=(0, 0)))
+~~~
+
+here we vectorise per-sample gradient calculation and speed up Jacobian and Hessian evaluation through JIT.
+
+---
+
+In exact LOOCV, we have to resort to 
+
+~~~{.python}
+for i in range(n):
+	theta_true[i] = theta_true[i] - alpha *
+		nabla_F(
+		np.delete(X, (i), axis=0),
+		np.delete(y, (i), axis=0),
+		lbd=lbd_v)
+~~~
+
+as we cannot vectorise over variable shaped matrices.
+
+\pause
+
+Also - I may have found a bug in JAX. Numpy's delete is orders of magnitude faster than JAX's equivalent, this needs fixing.
+
 # Future Plans
+
+For the short term,
+
+\pause
+
+- Write a general ACV implementation (focused mainly on IACV) to wrap existing optimisation schemes in Python. The main goal is to wrap JAXopt and/or pytorch.optim optimiser objects to provide a low-cost simultaneous ACV step alongside the main optimisation step.
+
+\pause
+
+- Understand the theoretical bounds on IACV accuracy and convergence.
+
+\pause
+
+- Implement a basic version of the sparse ACV algorithm described in Stephenson and Broderick (2020). There is already code for this out there.
+
+\pause
+
+For the long term, there are two paths to go down:
+
+- Possibly look at different learning algorithms to apply IACV to. A major culprit here is soft-margin SVM.
+
+\pause
+
+- Adapt the implementation and theory of sparse ACV for IACV.
