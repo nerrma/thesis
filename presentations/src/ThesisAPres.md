@@ -39,9 +39,9 @@ To set out the notation used throughout this seminar, we can define the Empirica
 
 To measure the error (or loss) we make on a data point, define a function $\ell(h; D_i)$,
 \begin{align*}
-	\ell(h; D) = \sum_{i=1}^n \ell(h; D_i)
+	\ell(h; D) = \sum_{i=1}^n \ell(h; D_i) & \text{ where } D_i = (X_i, Y_i)
 \end{align*}
-as the loss for the dataset. Examples of $\ell$ are 0-1 loss (for classification) and a squared error (for regression).
+as the loss for the *observed* data $D = \{(X_i, Y_i)\}_{i=1}^n$. Examples of $\ell$ are 0-1 loss (for classification) and a squared error (for regression).
 
 \pause
 
@@ -63,7 +63,7 @@ As we cannot measure **true** risk, we seek an approximation using the observed 
 ### Empirical Risk
 We define **empirical risk** of a hypothesis given data $D$ as,
 \begin{align*}
-	R_{\text{emp}}(h; D) = \frac{1}{n} \sum_{i=1}^n \ell(h; D_i)
+	R_{\text{emp}}(h; D) = \ell(h; D)
 \end{align*}
 The optimal hypothesis *given observed data* $D$ is,
 \begin{align*}
@@ -211,12 +211,12 @@ The main difference (from NS and IJ) is that we can define an ACV update rule fo
 using similar logic as in GD/SGD on the differentiable part of the regularised risk, we get IACV updates of, \pause
 \begin{align*}
     \tilde{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
-    \text{where }& \theta^\prime_{-i} = \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left((\ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+    \text{where }& \theta^\prime_{-i} = \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
 \end{align*}
 
 ---
 
-It may seem counter-intuitive that we swap a simple Jacobian for a Jacobian and a Hessian in the approximation step. \pause We have!
+It may seem counter-intuitive that we swap a simple Jacobian for a Jacobian *and* a Hessian in the approximation step. \pause The time complexities for the operations are as follows,
 
 \begin{center}
 	\begin{tabular}{c|c|c}
@@ -230,7 +230,7 @@ It may seem counter-intuitive that we swap a simple Jacobian for a Jacobian and 
 where $A_p$ is one evaluation of the Jacobian, $B_p$ is one evaluation of the Hessian, $D_p$ is one evaluation of the proximal operator and $K$ is the size of the subset used for SGD \footnote{Luo \& Barber (2023)}. \pause The time complexities here however, are not representative of empirics as the Jacobian and Hessian for IACV can be easily vectorised since we hold the argument $\hat{\theta}^{(k-1)}$ fixed.
 
 \pause
-In terms of space IACV uses $O(np + p^2)$ space, where as exact LOOCV uses $O(np)$ space. The orders of space are the similar when $p \ll n$, however can be an issue in higher dimensional problems (more discussion on this later).
+In terms of space IACV uses $O(np + p^2)$ space, where as exact LOOCV uses $O(np)$ space. The orders of space are the similar when $p \ll n$, however can be an issue in higher dimensional problems.
 
 ## Problems In High Dimensions
 
@@ -279,25 +279,27 @@ for some $\gamma > 0$. This condition essentially uses the regression coefficien
 	
 # Preliminary Work
 
-I have already written working code recreating the experiments in the original IACV paper. 
+I have already written working code recreating the experiments in the original IACV paper. This experiment is ACV applied to vanilla GD solving a logistic regression task.
 
 :::: columns
 ::: column
 \begin{figure}
     \centering
 	\vspace{5.75mm}
-    \scalebox{0.65}{\input{figures/err_approx_250.pgf}}
+    \scalebox{0.55}{\input{figures/err_approx_250.pgf}}
     \caption{My implementation (run for less iterations).}
 \end{figure}
 :::
 ::: column
 \begin{figure}
     \centering
-    \includegraphics[scale=0.45]{figures/err_approx_250_iacv.png}
+    \includegraphics[scale=0.375]{figures/err_approx_250_iacv.png}
     \caption{Experiment in the paper.}
 \end{figure}
 :::
 ::::
+
+Here, $\text{Err}_{\text{Approx}} = \frac{1}{n} \sum_{i=1}^n \|\tilde{\theta}_{-i}^{(k)} - \hat{\theta}_{-i}^{(k)}\|_2^2$ and legends are shared.
 
 ---
 
@@ -347,6 +349,16 @@ as we cannot vectorise over variable shaped matrices.
 \pause
 
 Also - I may have found a bug in JAX. Numpy's delete is orders of magnitude faster than JAX's equivalent, this needs fixing.
+
+---
+
+Basic experiment for $n=200$ and $p=400$ as a test of IACV using a logistic LASSO.
+\begin{figure}
+    \centering
+	\vspace{5.75mm}
+    \scalebox{0.65}{\input{figures/prelim_high_dim.pgf}}
+    \caption{Preliminary high-dimensional test}
+\end{figure}
 
 # Future Plans
 
