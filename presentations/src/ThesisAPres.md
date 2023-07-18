@@ -150,21 +150,21 @@ Now we can apply Newton's method for optimisation to take a ``step'' towards the
 
 We define the approximation of a LOOCV iterate as $\tilde{\theta}_{-j}$, where
 \begin{align*}
-    \tilde{\theta}_{-j} &= \hat{\theta} - \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-j})\right)^{-1} \left(\nbTh R_{\text{reg}}(\hat{\theta}; D) - \nbTh R_{\text{reg}}(\hat{\theta}; D_j)\right) \\
-    &= \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-j})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_j)
+    \tilde{\theta}_{-j} &= \hat{\theta} - \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{j})\right)^{-1} \left(\nbTh R_{\text{reg}}(\hat{\theta}; D) - \nbTh R_{\text{reg}}(\hat{\theta}; D_j)\right) \\
+    &= \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{j})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_j)
 \end{align*}
-the second line follows by the definition of $\hat{\theta}$. Note here, we also assume that the (modified) Hessian $\left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-j})\right)$ is invertible.
+the second line follows by the definition of $\hat{\theta}$. Note here, we also assume that the (modified) Hessian $\left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{j})\right)$ is invertible.
 
 \pause
 
 For discussion, the standard notation we'll use for the NS method is,
 \begin{align*}
-    \tilde{\theta}^{-i}_{\text{NS}} = \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{-i})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_i)
+    \tilde{\theta}^{-i}_{\text{NS}} = \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{i})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_i)
 \end{align*}
 
 ## Infinitesimal Jackknife
 
-An alternative method for ACV is the infinitesimal Jackknife (IJ). The complete derivation has been omitted for the sake of brevity, however the general idea is to use a *weighted* loss (i.e $w_i \ell(\theta; D_i)$ where $w \in \mathbb{R}^+$) and perform a first-order Taylor expansion around the weights to approximate LOOCV. 
+An alternative method for ACV is the infinitesimal Jackknife (IJ). The complete derivation has been omitted for the sake of brevity, however the general idea is to use a *weighted* loss (i.e $w_i \ell(\theta; D_i)$ where $w_i \in \mathbb{R}^+$ and we have a $w = \{w_i\}_{i=1}^n$) and perform a first-order Taylor expansion around the weights to approximate LOOCV. 
 
 The final form derived for this case is
 \begin{align*}
@@ -275,7 +275,18 @@ Alongside computational benefits, reducing the dimension of the data used for AC
 \begin{align*}
 \max_{j \in S^C }\|(X_S^T X_S)^{-1} X_S^T X_j\|_1 \leq 1 - \gamma
 \end{align*}
-for some $\gamma > 0$. This condition essentially uses the regression coefficients of $X_S$ onto $X_j$ to measure the alignment of the column $X_j$ on $X_S$. In the ideal case, the columns in $S^C$ are orthogonal to the columns in $S$ ($\gamma = 1$) and we can recover the support (given more assumptions).
+for some $\gamma > 0$. This condition essentially uses the coefficients of a regression of $X_S$ onto $X_j$ to measure the alignment of the column $X_j$ on $X_S$. In the ideal case, the columns in $S^C$ are orthogonal to the columns in $S$ ($\gamma = 1$) and we can recover the support (given more assumptions).
+
+---
+
+This method has also proved effective for non-simulated examples. 
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.575]{figures/high_dim_error.png}
+    \caption{Error rates for smoothed and ``sparse'' (L1) ACV methods on real data (Stephenson and Broderick (2020)). Here the error is measured by $\text{Err} = \frac{\sum_{i=1}^n |\ell(\tilde{\theta}_{-i}; D) - \ell(\hat{\theta}_{-i}; D)|}{\sum_{i=1}^n |\ell(\hat{\theta}_{-i}; D)|}$}
+\end{figure}
+
 	
 # Preliminary Work
 
@@ -380,7 +391,7 @@ For the short term,
 
 For the long term, there are two paths to go down:
 
-- Possibly look at different learning algorithms to apply IACV to. A major culprit here is soft-margin SVM.
+- Possibly look at different learning algorithms to apply IACV to. The main target here is soft-margin SVM.
 
 \pause
 
