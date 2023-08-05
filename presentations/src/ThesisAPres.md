@@ -50,11 +50,10 @@ Define the **risk** of a hypothesis for the complete space of inputs and outputs
 \begin{align*}
 	R(h) = \mathbb{E}_{\mathcal{X}, \mathcal{Y}} [\ell(h; \mathcal{D})]
 \end{align*}
-The optimal hypothesis for the data is,
+The optimal hypothesis selected from a hypothesis space $\mathcal{H}$ is defined as,
 \begin{align*}
 	h_{\mathcal{H}} = \argmin_{h \in \mathcal{H}} R(h)
 \end{align*}
-
 
 ## Empirical Risk
 
@@ -73,7 +72,7 @@ where $\mathcal{H}$ is a hypothesis space which a *learning algorithm* picks a h
 
 ## Issues with ERM
 
-By the (weak) law of large numbers $R_{\text{emp}}(h; D) \to R(h; \mathcal{D})$ as $n \to \infty$, so it is reasonable to assume that $h_D$ converges to a minimiser of true risk. \pause However, if we fit the explicit minimiser of empirical risk, we will not always find the minimiser of true risk \footnote{Refer to the bias-variance (or approximation-estimation) tradeoff.}. We can restrict the learning algorithm's ability to fully minimise empirical risk through **regularisation**.
+By the (weak) law of large numbers $R_{\text{emp}}(h; D) \overset{P}{\to} R(h; \mathcal{D})$ as $n \to \infty$, so it is reasonable to assume that $h_D$ converges to a minimiser of true risk. \pause However, if we fit the explicit minimiser of empirical risk, we will not always find the minimiser of true risk \footnote{Refer to the bias-variance (or approximation-estimation) tradeoff.}. We can restrict the learning algorithm's ability to fully minimise empirical risk through **regularisation**.
 
 \pause
 
@@ -89,7 +88,7 @@ To avoid ``overfitting'' to the observed data (i.e blindly minimising empirical 
 
 \pause
 
-The most common way to estimate the true risk of a hypothesis is to run Cross Validation (CV) for a hypothesis . This is where we break the observed data into small subsets to run multiple ``validation'' experiments (training the data on a subset and testing on an unseen subset).
+The most common way to estimate the true risk of a hypothesis is to run Cross Validation (CV) for a hypothesis. This is where we break the observed data into small subsets to run multiple ``validation'' experiments (training the data on a subset and testing on an unseen subset).
 
 \pause
 One of the most effective methods for risk approximation is Leave One Out Cross Validation (LOOCV) \footnote{Arlot \& Celisse (2008)}. This method is computationally expensive as we repeat the learning task $n$ times (where $n$ is the size of the observed data).
@@ -150,16 +149,16 @@ Now we can apply Newton's method for optimisation to take a ``step'' towards the
 
 We define the approximation of a LOOCV iterate as $\tilde{\theta}_{-j}$, where
 \begin{align*}
-    \tilde{\theta}_{-j} &= \hat{\theta} - \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{j})\right)^{-1} \left(\nbTh R_{\text{reg}}(\hat{\theta}; D) - \nbTh R_{\text{reg}}(\hat{\theta}; D_j)\right) \\
-    &= \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{j})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_j)
+    \tilde{\theta}_{-j} &= \hat{\theta} - \left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{j})\right)^{-1} \left(\nbTh R_{\text{reg}}(\hat{\theta}; D) - \nbTh R_{\text{reg}}(\hat{\theta}; D_j)\right) \\
+    &= \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{j})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_j)
 \end{align*}
-the second line follows by the definition of $\hat{\theta}$. Note here, we also assume that the (modified) Hessian $\left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{j})\right)$ is invertible.
+the second line follows by the definition of $\hat{\theta}$. Note here, we also assume that the (modified) Hessian $\left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{j})\right)$ is invertible.
 
 \pause
 
 For discussion, the standard notation we'll use for the NS method is,
 \begin{align*}
-    \tilde{\theta}^{-i}_{\text{NS}} = \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 R_{\text{reg}}(\hat{\theta}; D_{i})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_i)
+    \tilde{\theta}^{-i}_{\text{NS}} = \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{i})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_i)
 \end{align*}
 
 ## Infinitesimal Jackknife
@@ -183,7 +182,7 @@ where $S_k \subseteq [n]$ is a subset of indices and $\alpha_k$ is a learning ra
 
 The explicit optimisation step LOOCV iterate excluding a point $i$ is defined as,
 \begin{align*}
-    \hat{\theta}^{(k)}_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})
+    \hat{\theta}^{(k)}_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i})
 \end{align*}
 this step is what we aim to approximate.
 
@@ -191,14 +190,14 @@ this step is what we aim to approximate.
 
 The main computational burden in the LOOCV optimisation step is calculating the Jacobian $\nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})$ for $n$ points. \pause If we use a second-order expansion of the Jacobian for $\hat{\theta}^{(k-1)}_{-i}$ centered around the estimate $\hat{\theta}^{(k-1)}$, we can approximate the Jacobian for this step. \pause Here,
 \begin{align*}
-    \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i}) \approx \nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)
+    \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i}) \approx \nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)
 \end{align*}
 is the estimate for the Jacobian.
 
 \pause
 Therefore, the IACV updates for GD and SGD become,
 \begin{align*}
-    \tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+    \tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
 \end{align*}
 
 ---
@@ -206,12 +205,12 @@ Therefore, the IACV updates for GD and SGD become,
 The main difference (from NS and IJ) is that we can define an ACV update rule for proximal gradient descent. \pause If we define a general update rule for LOOCV proximal gradient descent as,
 \begin{align*}
     \hat{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
-    &\text{where } \theta^\prime_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \ell(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})
+    &\text{where } \theta^\prime_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \ell(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i})
 \end{align*}
 using similar logic as in GD/SGD on the differentiable part of the regularised risk, we get IACV updates of, \pause
 \begin{align*}
     \tilde{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
-    \text{where }& \theta^\prime_{-i} = \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) + \nbTh^2 \ell(\hat{\theta}^{(k-1)}; D_{S_t \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+    \text{where }& \theta^\prime_{-i} = \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \ell(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \ell(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
 \end{align*}
 
 ---
@@ -391,8 +390,9 @@ For the short term,
 
 For the long term, there are two paths to go down:
 
-- Possibly look at different learning algorithms to apply IACV to. The main target here is soft-margin SVM.
+- Adapt the implementation and theory of sparse ACV for IACV.
 
 \pause
 
-- Adapt the implementation and theory of sparse ACV for IACV.
+- Possibly look at different learning algorithms to apply IACV to. The main target here is soft-margin SVM.
+
