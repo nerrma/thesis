@@ -149,6 +149,7 @@ def run_sim(n, p, n_iter=250):
                 (true_cv_start, true_cv_end),
             ],
         ):
-            runtime[k][t] = runtime[k][t - 1] + t2 - t1 if t > 0 else t2 - t1
+            # runtime[k][t] = runtime[k][t - 1] + t2 - t1 if t > 0 else t2 - t1
+            runtime[k][t] = runtime[k][t - 1] + t2 - t1 if t > 0 else 0
 
     return err_approx, cv_err, runtime
