@@ -37,6 +37,8 @@ def F_mod_s(theta, X, y, lbd):
 def run_sim(n, p, n_iter=250, lbd_v=None):
     X, theta_star, y = sample_from_logreg_first_5(p=p, n=n)
 
+    true_support = np.where(theta_star != 0)[0]
+
     if lbd_v is None:
         lbd_v = 1e-6 * n
 
@@ -109,6 +111,12 @@ def run_sim(n, p, n_iter=250, lbd_v=None):
         theta_s = np.zeros(theta.shape)
         theta_s[support] = theta[support]
 
+        X_s_true = np.zeros(X.shape)
+        X_s_true[:, true_support] = X[:, true_support]
+
+        theta_s_true = np.zeros(theta.shape)
+        theta_s_true[true_support] = theta[true_support]
+
         # IACV block
         iacv_start = time.time()
         f_grad = jnp.nan_to_num(nabla_F(theta, X, y, lbd_v), nan=lbd_v)
@@ -136,11 +144,11 @@ def run_sim(n, p, n_iter=250, lbd_v=None):
         # theta_s = jnp.compress(supp_bool, theta)
         # theta_cv_sparse_compress = jnp.compress(supp_bool, theta_cv_sparse, axis=1)
 
-        f_grad_s = jnp.nan_to_num(nabla_F(theta_s, X_s, y, lbd_v), nan=lbd_v)
-        f_hess_s = jnp.nan_to_num(hess_F(theta_s, X_s, y, lbd_v), nan=lbd_v)
+        f_grad_s = jnp.nan_to_num(nabla_F(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
+        f_hess_s = jnp.nan_to_num(hess_F(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
 
-        grad_Z_s = jnp.nan_to_num(grad_Z_f(theta_s, X_s, y, lbd_v), nan=lbd_v)
-        hess_Z_s = jnp.nan_to_num(hess_Z_f(theta_s, X_s, y, lbd_v), nan=lbd_v)
+        grad_Z_s = jnp.nan_to_num(grad_Z_f(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
+        hess_Z_s = jnp.nan_to_num(hess_Z_f(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
 
         grad_minus_s = f_grad_s - grad_Z_s
         hess_minus_s = f_hess_s - hess_Z_s
