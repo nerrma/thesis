@@ -1,0 +1,9 @@
+#+title: Todo
+
+- write up SVM section
+- test SmoothHinge on actual data to see if the solution makes any sense
+  - news 20
+- test IACVs for p=20 and n=1000
+- tests for different sigma
+- surrogate losses
+  - distance from iacv to cv and true svm to smoothhinge svm
