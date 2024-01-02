@@ -15,7 +15,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 n = 250
 p = 20
-n_iter = 2
+n_iter = 200
 
 # print("OG GD: ")
 # start = time.time()
