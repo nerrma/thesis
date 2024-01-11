@@ -19,7 +19,9 @@ class SVM_smooth:
         self.weights_ = np.zeros(0)
         self.grads_ = []
         self.cond_nums_ = []
+        self.eig_vals_ = []
         self.err_approx_ = {"IACV": [], "baseline": []}
+        self.err_cv_ = {"IACV": [], "baseline": []}
         self.hess_ = []
 
     def Phi_m(self, v):
@@ -91,10 +93,11 @@ class SVM_smooth:
         # hess = lbd * np.eye(self.p) + 1 / self.n * X.T * d @ X
         return hess
 
+    def loss(self, w, X, y, sigma):
+        return jnp.mean(self.Psi_m(y * (X @ w), sigma))
+
     def SSVM_objective(self, w, X, y, sigma, lbd):
-        return 1 / 2 * jnp.linalg.norm(w) * lbd + jnp.mean(
-            self.Psi_m(y * (X @ w), sigma)
-        )
+        return 1 / 2 * jnp.linalg.norm(w) * lbd + self.loss(w, X, y, sigma)
 
     def fit_gd_(
         self,
@@ -108,14 +111,21 @@ class SVM_smooth:
         log_iacv=False,
         log_iter=False,
         log_cond_number=False,
+        log_eig_vals=False,
         save_grads=False,
         save_hess=False,
         save_cond_nums=False,
+        save_eig_vals=False,
         save_err_approx=False,
+        save_err_cv=False,
         use_jax_grad=False,
+        warm_start=0,
         normalise=False,
     ):
         alpha_t = eta
+
+        self.err_approx_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
+        self.err_cv_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
 
         grad_Z_f = jit(vmap(self.nabla_fgd_single_, in_axes=(None, 0, 0, None, None)))
         hess_Z_f = jit(vmap(self.hess_fgd_single_, in_axes=(None, 0, 0, None, None)))
@@ -129,6 +139,8 @@ class SVM_smooth:
             hess_Z_f = jit(vmap(jax_hess, in_axes=(None, 0, 0, None, None)))
 
         vmap_matmul = jit(vmap(jnp.matmul, in_axes=(0, 0)))
+        loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
+        loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
         for t in range(n_iter):
             if use_jax_grad:
@@ -141,13 +153,13 @@ class SVM_smooth:
                 break
 
             if approx_cv == True:
-                # vectorised per sample hessian
                 start = time.time()
                 if use_jax_grad:
                     f_hess = jax_hess(self.weights_, X, y, self.sigma_, self.lbd_)
                 else:
                     f_hess = self.hess_fgd_(self.weights_, X, y, self.sigma_, self.lbd_)
 
+                # vectorised per sample hessian
                 grad_per_sample = grad_Z_f(self.weights_, X, y, self.sigma_, self.lbd_)
                 hess_per_sample = hess_Z_f(self.weights_, X, y, self.sigma_, self.lbd_)
 
@@ -167,13 +179,29 @@ class SVM_smooth:
                         print(
                             f"mean hessian condition number {np.mean(cond_num)} | min hessian condition number {np.min(cond_num, axis=0)} | max hessian condition number {np.max(cond_num, axis=0)}"
                         )
+                if log_eig_vals or save_eig_vals:
+                    eig_vals = np.linalg.eigvals(hess_minus_i)
+                    self.eig_vals_.append(eig_vals)
 
-                self.loo_iacv_ = (
-                    self.loo_iacv_
-                    - alpha_t * grad_minus_i
-                    - alpha_t
-                    * vmap_matmul(hess_minus_i, (self.loo_iacv_ - self.weights_))
-                )
+                    if log_eig_vals:
+                        print(
+                            f"min eig value {np.min(eig_vals)} | max eig value {np.max(eig_vals)}"
+                        )
+
+                if t >= warm_start:
+                    if t == warm_start and warm_start != 0:
+                        new_lr = eta
+                        print(f"changing learning rate from {eta} to {new_lr}")
+                        eta = new_lr
+                        self.loo_iacv_ = np.asarray([self.weights_] * self.n)
+
+                    self.loo_iacv_ = (
+                        self.loo_iacv_
+                        - alpha_t * grad_minus_i
+                        - alpha_t
+                        * vmap_matmul(hess_minus_i, (self.loo_iacv_ - self.weights_))
+                    )
+
                 if normalise:
                     self.loo_iacv_ = normalize(self.loo_iacv_, axis=1)
 
@@ -185,7 +213,7 @@ class SVM_smooth:
                     X_temp = np.delete(X, (i), axis=0)
                     y_temp = np.delete(y, (i), axis=0)
                     self.loo_true_[i] = self.loo_true_[i] - eta * self.nabla_fgd_(
-                        self.weights_, X_temp, y_temp, self.sigma_, self.lbd_
+                        self.loo_true_[i], X_temp, y_temp, self.sigma_, self.lbd_
                     )
                 end = time.time()
                 if normalise:
@@ -205,13 +233,24 @@ class SVM_smooth:
                 print("\n", end="")
 
             if save_err_approx:
-                self.err_approx_["IACV"].append(
-                    np.mean(np.linalg.norm(self.loo_iacv_ - self.loo_true_, 2, axis=1))
+                self.err_approx_["IACV"][t] = np.mean(
+                    np.linalg.norm(self.loo_iacv_ - self.loo_true_, 2, axis=1)
                 )
 
-                self.err_approx_["baseline"].append(
-                    np.mean(np.linalg.norm(self.weights_ - self.loo_true_, 2, axis=1))
+                self.err_approx_["baseline"][t] = np.mean(
+                    np.linalg.norm(self.weights_ - self.loo_true_, 2, axis=1)
                 )
+
+            if save_err_cv:
+                self.err_cv_["IACV"][t] = np.abs(
+                    loss_vmap(self.loo_iacv_, X, y, self.sigma_)
+                    - loss_vmap(self.loo_true_, X, y, self.sigma_)
+                ).mean()
+
+                self.err_cv_["baseline"][t] = np.abs(
+                    loss_vmap_fixed_w(self.weights_, X, y, self.sigma_)
+                    - loss_vmap(self.loo_true_, X, y, self.sigma_)
+                ).mean()
 
             self.weights_ = self.weights_ - eta * f_grad
 
@@ -246,6 +285,9 @@ class SVM_smooth:
 
         self.loo_true_ = np.zeros((self.n, self.p))
         self.loo_iacv_ = np.zeros((self.n, self.p))
+        if init_w is not None:
+            self.loo_true_ = np.asarray([init_w] * self.n)
+            self.loo_iacv_ = np.asarray([init_w] * self.n)
 
         self.fit_gd_(
             X,
