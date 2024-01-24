@@ -4,38 +4,43 @@ from sklearn.datasets import load_breast_cancer, make_classification
 from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.metrics import accuracy_score
 
+from sampler import sample_from_logreg
+
 import numpy as np
 import matplotlib.pyplot as plt
 
 from cv_svm import SVM_smooth
 
-X, y = load_breast_cancer(return_X_y=True)
-# X, y = make_classification(n_samples=1200, n_features=4, random_state=10)
+# X, y = load_breast_cancer(return_X_y=True)
+# X, y = make_classification(n_samples=100, n_features=4, random_state=10)
+X, theta_star, y = sample_from_logreg(n=250, p=20)
 n = X.shape[0]
 p = X.shape[1]
 y[np.where(y == 0)] = -1
 
 X = StandardScaler().fit_transform(X)
 
-clf = SVM_smooth(sigma=1e-1, lbd=0)
+clf = SVM_smooth(sigma=1e-1, lbd=1)
 clf.fit(
     X,
     y,
-    thresh=1e-3,
-    n_iter=2000,
-    # eta=0.5 / n,
-    eta=0.8,
+    thresh=1e-6,
+    n_iter=3500,
+    eta=0.85 / n,
     approx_cv=True,
     cv=True,
     log_iacv=True,
-    log_iter=True,
+    log_iter=False,
     log_cond_number=False,
     log_eig_vals=False,
-    warm_start=1750,
+    log_accuracy=True,
+    warm_start=0,
     save_eig_vals=False,
     save_err_cv=True,
     save_err_approx=True,
     use_jax_grad=False,
+    include_lambda_grad=False
+    # init_w=np.ones(p),
 )
 
 y_pred = clf.predict(X)
@@ -48,7 +53,6 @@ print(
 print(
     f"IACV variance: {np.var(clf.loo_iacv_)} | true variance: {np.var(clf.loo_true_)}"
 )
-print(f"IACV variance: {np.sort(clf.loo_iacv_)}")
 print(
     f"minimum eig value (lambda_0) {np.min(clf.eig_vals_)} | maximum eig value (lambda_1) {np.max(clf.eig_vals_)}"
 )

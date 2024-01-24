@@ -4,6 +4,7 @@ import time
 from jax import vmap, jacrev, jacfwd, grad, jit
 from scipy import linalg as sc_linalg
 from sklearn.preprocessing import normalize
+from sklearn.metrics import accuracy_score
 import jax.numpy as jnp
 
 
@@ -68,30 +69,28 @@ class SVM_smooth:
     ):
         return lbd * w - 1 / self.n * self.Phi_m_jax((1 - y * (X * w)) / sigma) * y * X
 
+    def nabla_fgd_single_no_lambda_(
+        self,
+        w: np.ndarray,
+        X: np.ndarray,
+        y: np.float64,
+        sigma: np.float64,
+        lbd: np.float64,
+    ):
+        return -1 / self.n * self.Phi_m_jax((1 - y * (X * w)) / sigma) * y * X
+
     def hess_fgd_(self, w, X, y, sigma, lbd):
         d = self.Phi_m_prime((1 - y * (X @ w)) / sigma) / sigma
-        # D = np.eye(d.shape[0])
-        # for i in range(d.shape[0]):
-        #    D[i, i] = d[i]
-
-        # hess = lbd * np.eye(self.p) + 1 / self.n * X.T @ D @ X
         hess = lbd * np.eye(self.p) + 1 / self.n * X.T * d @ X
         return hess
 
     def hess_fgd_single_(self, w, X, y, sigma, lbd):
         d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
-        # D = jnp.eye(self.n)
-        # jnp.fill_diagonal(D, d)
-        # diag_elements = jnp.diag_indices_from(D)
-        # D = D.at[diag_elements].set(d)
-        # for i in range(self.n):
-        #    D[i, i] = d.at[i]
+        return lbd * np.eye(self.p) + 1 / self.n * d * X * X
 
-        # hess = lbd * np.eye(self.p) + 1 / self.n * d * X.T * X
-        # X = X.reshape(-1, 1)
-        hess = lbd * np.eye(self.p) + 1 / self.n * d * X * X
-        # hess = lbd * np.eye(self.p) + 1 / self.n * X.T * d @ X
-        return hess
+    def hess_fgd_single_no_lambda_(self, w, X, y, sigma, lbd):
+        d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
+        return np.zeros((self.p, self.p)) + 1 / self.n * d * X * X
 
     def loss(self, w, X, y, sigma):
         return jnp.mean(self.Psi_m(y * (X @ w), sigma))
@@ -112,6 +111,7 @@ class SVM_smooth:
         log_iter=False,
         log_cond_number=False,
         log_eig_vals=False,
+        log_accuracy=False,
         save_grads=False,
         save_hess=False,
         save_cond_nums=False,
@@ -121,6 +121,7 @@ class SVM_smooth:
         use_jax_grad=False,
         warm_start=0,
         normalise=False,
+        include_lambda_grad=True,
     ):
         alpha_t = eta
 
@@ -129,6 +130,14 @@ class SVM_smooth:
 
         grad_Z_f = jit(vmap(self.nabla_fgd_single_, in_axes=(None, 0, 0, None, None)))
         hess_Z_f = jit(vmap(self.hess_fgd_single_, in_axes=(None, 0, 0, None, None)))
+
+        if include_lambda_grad == False:
+            grad_Z_f = jit(
+                vmap(self.nabla_fgd_single_no_lambda_, in_axes=(None, 0, 0, None, None))
+            )
+            hess_Z_f = jit(
+                vmap(self.hess_fgd_single_no_lambda_, in_axes=(None, 0, 0, None, None))
+            )
 
         # define jax grad variables
         jax_grad = jit(grad(self.SSVM_objective))
@@ -225,11 +234,14 @@ class SVM_smooth:
                     end="",
                 )
 
+            if log_accuracy == True:
+                print(f"| accuracy: {accuracy_score(y, self.predict(X))} ", end="")
+
             if log_iacv == True:
                 print(
-                    f"IACV: {np.mean(np.linalg.norm(self.loo_iacv_ - self.loo_true_, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.weights_ - self.loo_true_, 2, axis=1)):.8f}"
+                    f"| IACV: {np.mean(np.linalg.norm(self.loo_iacv_ - self.loo_true_, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.weights_ - self.loo_true_, 2, axis=1)):.8f}"
                 )
-            elif log_iter:
+            elif log_iter or log_accuracy:
                 print("\n", end="")
 
             if save_err_approx:
@@ -262,7 +274,9 @@ class SVM_smooth:
 
             # normalise?
             if normalise:
-                self.weights_ /= np.linalg.norm(self.weights_)
+                self.weights_ = normalize(
+                    self.weights_.reshape(-1, 1), axis=0
+                ).flatten()
 
     def fit(
         self,
