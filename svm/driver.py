@@ -20,12 +20,12 @@ y[np.where(y == 0)] = -1
 
 X = StandardScaler().fit_transform(X)
 
-clf = SVM_smooth(sigma=1e-1, lbd=1)
+clf = SVM_smooth(sigma=1e-1, lbd=0)
 clf.fit(
     X,
     y,
     thresh=1e-6,
-    n_iter=3500,
+    n_iter=4,
     eta=0.85 / n,
     approx_cv=True,
     cv=True,
@@ -36,10 +36,11 @@ clf.fit(
     log_accuracy=True,
     warm_start=0,
     save_eig_vals=False,
+    save_cond_nums=True,
     save_err_cv=True,
     save_err_approx=True,
     use_jax_grad=False,
-    include_lambda_grad=False
+    adjust_factor=False
     # init_w=np.ones(p),
 )
 

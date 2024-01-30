@@ -20,6 +20,7 @@ class SVM_smooth:
         self.weights_ = np.zeros(0)
         self.grads_ = []
         self.cond_nums_ = []
+        self.cond_num_bound_ = []
         self.eig_vals_ = []
         self.err_approx_ = {"IACV": [], "baseline": []}
         self.err_cv_ = {"IACV": [], "baseline": []}
@@ -59,17 +60,17 @@ class SVM_smooth:
     ):
         return lbd * w - 1 / self.n * self.Phi_m((1 - y * (X @ w)) / sigma) * y @ X
 
-    def nabla_fgd_single_(
+    def nabla_fgd_no_reg_no_factor_(
         self,
         w: np.ndarray,
         X: np.ndarray,
-        y: np.float64,
+        y: np.ndarray,
         sigma: np.float64,
         lbd: np.float64,
     ):
-        return lbd * w - 1 / self.n * self.Phi_m_jax((1 - y * (X * w)) / sigma) * y * X
+        return -self.Phi_m((1 - y * (X @ w)) / sigma) * y @ X
 
-    def nabla_fgd_single_no_lambda_(
+    def nabla_fgd_single_(
         self,
         w: np.ndarray,
         X: np.ndarray,
@@ -79,24 +80,67 @@ class SVM_smooth:
     ):
         return -1 / self.n * self.Phi_m_jax((1 - y * (X * w)) / sigma) * y * X
 
+    def nabla_fgd_single_no_factor_(
+        self,
+        w: np.ndarray,
+        X: np.ndarray,
+        y: np.float64,
+        sigma: np.float64,
+        lbd: np.float64,
+    ):
+        return -self.Phi_m_jax((1 - y * (X * w)) / sigma) * y * X
+
     def hess_fgd_(self, w, X, y, sigma, lbd):
         d = self.Phi_m_prime((1 - y * (X @ w)) / sigma) / sigma
         hess = lbd * np.eye(self.p) + 1 / self.n * X.T * d @ X
+
+        return hess
+
+    def hess_fgd_no_reg_no_factor_(self, w, X, y, sigma, lbd):
+        d = self.Phi_m_prime((1 - y * (X @ w)) / sigma) / sigma
+        hess = X.T * d @ X
         return hess
 
     def hess_fgd_single_(self, w, X, y, sigma, lbd):
         d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
-        return lbd * np.eye(self.p) + 1 / self.n * d * X * X
-
-    def hess_fgd_single_no_lambda_(self, w, X, y, sigma, lbd):
-        d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
         return np.zeros((self.p, self.p)) + 1 / self.n * d * X * X
+
+    def hess_fgd_single_no_factor_(self, w, X, y, sigma, lbd):
+        d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
+        return np.zeros((self.p, self.p)) + d * X * X
 
     def loss(self, w, X, y, sigma):
         return jnp.mean(self.Psi_m(y * (X @ w), sigma))
 
     def SSVM_objective(self, w, X, y, sigma, lbd):
         return 1 / 2 * jnp.linalg.norm(w) * lbd + self.loss(w, X, y, sigma)
+
+    def eval_cond_num_bound(self, X, hessian_LOO):
+        n = X.shape[0]
+        exclude = min(n, 50)
+
+        vals = np.empty(exclude)
+        for i, idx in enumerate(np.random.choice(np.arange(n), size=exclude)):
+            d_i = np.linalg.norm(hessian_LOO[i])
+            X_tilde = np.delete(X, (idx), axis=0)
+            C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
+            # smooth this by 1/n-1?
+            vals[i] = (self.lbd_ + C * d_i) / (self.lbd_)
+
+        return np.max(vals)
+
+        # n = X.shape[0]
+        ## print(np.linalg.norm(np.linalg.norm(hessian_LOO, axis=1), axis=1).shape)
+        ## print(np.linalg.norm(hessian_LOO[0]).shape)
+        # i = np.argmax(np.linalg.norm(np.linalg.norm(hessian_LOO, axis=1), axis=1))
+        ## print(i)
+        # d_i = np.max(hessian_LOO[i])
+
+        # X_tilde = np.delete(X, (i), axis=0)
+        # assert X_tilde.shape[0] == n - 1
+        # C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
+
+        # return (self.lbd_ + C * d_i) / (self.lbd_)
 
     def fit_gd_(
         self,
@@ -121,9 +165,13 @@ class SVM_smooth:
         use_jax_grad=False,
         warm_start=0,
         normalise=False,
-        include_lambda_grad=True,
+        adjust_factor=True,
+        factor=None,
     ):
+        # ensure we have a valid factor (if needed) and learning rate
         alpha_t = eta
+        if adjust_factor and factor is None:
+            factor = 1 / (self.n - 1)
 
         self.err_approx_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
         self.err_cv_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
@@ -131,31 +179,39 @@ class SVM_smooth:
         grad_Z_f = jit(vmap(self.nabla_fgd_single_, in_axes=(None, 0, 0, None, None)))
         hess_Z_f = jit(vmap(self.hess_fgd_single_, in_axes=(None, 0, 0, None, None)))
 
-        if include_lambda_grad == False:
+        # set per-sample gradients
+        if adjust_factor:
             grad_Z_f = jit(
-                vmap(self.nabla_fgd_single_no_lambda_, in_axes=(None, 0, 0, None, None))
+                vmap(self.nabla_fgd_single_no_factor_, in_axes=(None, 0, 0, None, None))
             )
             hess_Z_f = jit(
-                vmap(self.hess_fgd_single_no_lambda_, in_axes=(None, 0, 0, None, None))
+                vmap(self.hess_fgd_single_no_factor_, in_axes=(None, 0, 0, None, None))
             )
 
+        # define gradient functions (can be variable based on arguments)
+        nabla_function = self.nabla_fgd_
+        hess_function = self.hess_fgd_
+
+        # if we adjust to use a factor of n-1
+        if adjust_factor:
+            nabla_function = self.nabla_fgd_no_reg_no_factor_
+            hess_function = self.hess_fgd_no_reg_no_factor_
+
         # define jax grad variables
-        jax_grad = jit(grad(self.SSVM_objective))
-        jax_hess = jit(jacfwd(jacrev(self.SSVM_objective)))
+        if use_jax_grad:
+            nabla_function = jit(grad(self.SSVM_objective))
+            hess_function = jit(jacfwd(jacrev(self.SSVM_objective)))
 
         if use_jax_grad:
-            grad_Z_f = jit(vmap(jax_grad, in_axes=(None, 0, 0, None, None)))
-            hess_Z_f = jit(vmap(jax_hess, in_axes=(None, 0, 0, None, None)))
+            grad_Z_f = jit(vmap(nabla_function, in_axes=(None, 0, 0, None, None)))
+            hess_Z_f = jit(vmap(hess_function, in_axes=(None, 0, 0, None, None)))
 
         vmap_matmul = jit(vmap(jnp.matmul, in_axes=(0, 0)))
         loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
         loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
         for t in range(n_iter):
-            if use_jax_grad:
-                f_grad = jax_grad(self.weights_, X, y, self.sigma_, self.lbd_)
-            else:
-                f_grad = self.nabla_fgd_(self.weights_, X, y, self.sigma_, self.lbd_)
+            f_grad = nabla_function(self.weights_, X, y, self.sigma_, self.lbd_)
 
             if np.linalg.norm(f_grad) < thresh:
                 print(f"stopping early at iteration {t}")
@@ -163,10 +219,7 @@ class SVM_smooth:
 
             if approx_cv == True:
                 start = time.time()
-                if use_jax_grad:
-                    f_hess = jax_hess(self.weights_, X, y, self.sigma_, self.lbd_)
-                else:
-                    f_hess = self.hess_fgd_(self.weights_, X, y, self.sigma_, self.lbd_)
+                f_hess = hess_function(self.weights_, X, y, self.sigma_, self.lbd_)
 
                 # vectorised per sample hessian
                 grad_per_sample = grad_Z_f(self.weights_, X, y, self.sigma_, self.lbd_)
@@ -176,10 +229,18 @@ class SVM_smooth:
                 hess_minus_i = f_hess - hess_per_sample
                 grad_minus_i = f_grad - grad_per_sample
 
+                # if we adjust the factor, we also need to add regularisation back
+                if adjust_factor:
+                    hess_minus_i = self.lbd_ * np.eye(self.p) + factor * hess_minus_i
+                    grad_minus_i = self.lbd_ * self.weights_ + factor * grad_minus_i
+
                 if log_cond_number or save_cond_nums:
                     cond_num = np.linalg.cond(hess_minus_i)
                     if save_cond_nums:
                         self.cond_nums_.append(cond_num)
+                        self.cond_num_bound_.append(
+                            self.eval_cond_num_bound(X, hess_minus_i)
+                        )
 
                     if log_cond_number:
                         print(
@@ -228,9 +289,12 @@ class SVM_smooth:
                 if normalise:
                     self.loo_true_ = normalize(self.loo_true_, axis=1)
 
+            f_grad_neutral = self.nabla_fgd_(
+                self.weights_, X, y, self.sigma_, self.lbd_
+            )
             if log_iter == True:
                 print(
-                    f"iter {t} | grad {np.linalg.norm(f_grad):.5f} | objective {self.SSVM_objective(self.weights_, X, y, self.sigma_, self.lbd_):.5f} ",
+                    f"iter {t} | grad {np.linalg.norm(f_grad_neutral):.5f} | objective {self.SSVM_objective(self.weights_, X, y, self.sigma_, self.lbd_):.5f} ",
                     end="",
                 )
 
@@ -264,10 +328,11 @@ class SVM_smooth:
                     - loss_vmap(self.loo_true_, X, y, self.sigma_)
                 ).mean()
 
-            self.weights_ = self.weights_ - eta * f_grad
+            # update weights
+            self.weights_ = self.weights_ - eta * f_grad_neutral
 
             if save_grads == True:
-                self.grads_.append(f_grad)
+                self.grads_.append(f_grad_neutral)
 
             if save_hess == True:
                 self.hess_.append(f_hess)
