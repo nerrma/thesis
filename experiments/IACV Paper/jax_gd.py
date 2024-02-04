@@ -152,4 +152,8 @@ def run_sim(n, p, n_iter=250):
             # runtime[k][t] = runtime[k][t - 1] + t2 - t1 if t > 0 else t2 - t1
             runtime[k][t] = runtime[k][t - 1] + t2 - t1 if t > 0 else 0
 
+        print(
+            f"IACV: {err_approx['IACV'][t]} | baseline: {err_approx['hat'][t]} | NS: {err_approx['NS'][t]} | IJ {err_approx['IJ'][t]}"
+        )
+
     return err_approx, cv_err, runtime

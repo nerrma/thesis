@@ -21,6 +21,7 @@ class SVM_smooth:
         self.grads_ = []
         self.cond_nums_ = []
         self.cond_num_bound_ = []
+        self.hess_norms_ = []
         self.eig_vals_ = []
         self.err_approx_ = {"IACV": [], "baseline": []}
         self.err_cv_ = {"IACV": [], "baseline": []}
@@ -97,16 +98,16 @@ class SVM_smooth:
         return hess
 
     def hess_fgd_no_reg_no_factor_(self, w, X, y, sigma, lbd):
-        d = self.Phi_m_prime((1 - y * (X @ w)) / sigma) / sigma
+        d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
         hess = X.T * d @ X
         return hess
 
     def hess_fgd_single_(self, w, X, y, sigma, lbd):
-        d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
+        d = self.Phi_m_prime_jax((1 - y * (X * w)) / sigma) / sigma
         return np.zeros((self.p, self.p)) + 1 / self.n * d * X * X
 
     def hess_fgd_single_no_factor_(self, w, X, y, sigma, lbd):
-        d = self.Phi_m_prime_jax((1 - y * (X @ w)) / sigma) / sigma
+        d = self.Phi_m_prime_jax((1 - y * (X * w)) / sigma) / sigma
         return np.zeros((self.p, self.p)) + d * X * X
 
     def loss(self, w, X, y, sigma):
@@ -116,31 +117,34 @@ class SVM_smooth:
         return 1 / 2 * jnp.linalg.norm(w) * lbd + self.loss(w, X, y, sigma)
 
     def eval_cond_num_bound(self, X, hessian_LOO):
-        n = X.shape[0]
-        exclude = min(n, 50)
+        # n = X.shape[0]
+        # exclude = min(n, 20)
 
-        vals = np.empty(exclude)
-        for i, idx in enumerate(np.random.choice(np.arange(n), size=exclude)):
-            d_i = np.linalg.norm(hessian_LOO[i])
-            X_tilde = np.delete(X, (idx), axis=0)
-            C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
-            # smooth this by 1/n-1?
-            vals[i] = (self.lbd_ + C * d_i) / (self.lbd_)
+        # vals = np.empty(exclude)
+        # for i, idx in enumerate(np.random.choice(np.arange(n), size=exclude)):
+        #    d_i = np.linalg.norm(hessian_LOO[i])
+        #    X_tilde = np.delete(X, (idx), axis=0)
+        #    C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
+        #    # smooth this by 1/n-1?
+        #    vals[i] = (self.lbd_ + C * d_i) / (self.lbd_)
 
-        return np.max(vals)
+        # return np.max(vals)
 
         # n = X.shape[0]
-        ## print(np.linalg.norm(np.linalg.norm(hessian_LOO, axis=1), axis=1).shape)
-        ## print(np.linalg.norm(hessian_LOO[0]).shape)
-        # i = np.argmax(np.linalg.norm(np.linalg.norm(hessian_LOO, axis=1), axis=1))
-        ## print(i)
-        # d_i = np.max(hessian_LOO[i])
-
-        # X_tilde = np.delete(X, (i), axis=0)
-        # assert X_tilde.shape[0] == n - 1
-        # C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
-
+        # d_i = np.linalg.norm(hessian_LOO)
+        # C = np.linalg.norm(X.T @ X) / (n - 1)
+        ## smooth this by 1/n-1?
         # return (self.lbd_ + C * d_i) / (self.lbd_)
+
+        n = X.shape[0]
+        i = np.argmax(np.linalg.norm(np.linalg.norm(hessian_LOO, axis=1), axis=1))
+        d_i = np.max(hessian_LOO[i])
+
+        X_tilde = np.delete(X, (i), axis=0)
+        assert X_tilde.shape[0] == n - 1
+        C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
+
+        return (self.lbd_ + C * d_i) / (self.lbd_)
 
     def fit_gd_(
         self,
@@ -159,6 +163,7 @@ class SVM_smooth:
         save_grads=False,
         save_hess=False,
         save_cond_nums=False,
+        save_hessian_norms=False,
         save_eig_vals=False,
         save_err_approx=False,
         save_err_cv=False,
@@ -213,10 +218,6 @@ class SVM_smooth:
         for t in range(n_iter):
             f_grad = nabla_function(self.weights_, X, y, self.sigma_, self.lbd_)
 
-            if np.linalg.norm(f_grad) < thresh:
-                print(f"stopping early at iteration {t}")
-                break
-
             if approx_cv == True:
                 start = time.time()
                 f_hess = hess_function(self.weights_, X, y, self.sigma_, self.lbd_)
@@ -229,10 +230,17 @@ class SVM_smooth:
                 hess_minus_i = f_hess - hess_per_sample
                 grad_minus_i = f_grad - grad_per_sample
 
+                # bounds check
+                if np.linalg.norm(f_hess) > 1e5:
+                    f_hess = np.zeros(self.p)
+                    hess_minus_i = -hess_per_sample
+
                 # if we adjust the factor, we also need to add regularisation back
                 if adjust_factor:
                     hess_minus_i = self.lbd_ * np.eye(self.p) + factor * hess_minus_i
                     grad_minus_i = self.lbd_ * self.weights_ + factor * grad_minus_i
+
+                    f_hess = self.lbd_ * np.eye(self.p) + 1 / self.n * f_hess
 
                 if log_cond_number or save_cond_nums:
                     cond_num = np.linalg.cond(hess_minus_i)
@@ -249,6 +257,7 @@ class SVM_smooth:
                         print(
                             f"mean hessian condition number {np.mean(cond_num)} | min hessian condition number {np.min(cond_num, axis=0)} | max hessian condition number {np.max(cond_num, axis=0)}"
                         )
+
                 if log_eig_vals or save_eig_vals:
                     eig_vals = np.linalg.eigvals(hess_minus_i)
                     self.eig_vals_.append(eig_vals)
@@ -257,6 +266,16 @@ class SVM_smooth:
                         print(
                             f"min eig value {np.min(eig_vals)} | max eig value {np.max(eig_vals)}"
                         )
+
+                if save_hessian_norms:
+                    if np.linalg.norm(hess_minus_i) > 1e6:
+                        print(hess_minus_i)
+                        print(1 - y * (X @ self.weights_) / self.sigma_)
+                        break
+
+                    self.hess_norms_.append(
+                        (np.linalg.norm(f_hess), np.linalg.norm(hess_minus_i))
+                    )
 
                 if t >= warm_start:
                     if t == warm_start and warm_start != 0:
@@ -292,6 +311,11 @@ class SVM_smooth:
             f_grad_neutral = self.nabla_fgd_(
                 self.weights_, X, y, self.sigma_, self.lbd_
             )
+
+            if np.linalg.norm(f_grad_neutral) < thresh:
+                print(f"stopping early at iteration {t}")
+                break
+
             if log_iter == True:
                 print(
                     f"iter {t} | grad {np.linalg.norm(f_grad_neutral):.5f} | objective {self.SSVM_objective(self.weights_, X, y, self.sigma_, self.lbd_):.5f} ",

@@ -40,7 +40,7 @@ clf.fit(
     save_err_cv=True,
     save_err_approx=True,
     use_jax_grad=False,
-    adjust_factor=False
+    adjust_factor=True
     # init_w=np.ones(p),
 )
 
