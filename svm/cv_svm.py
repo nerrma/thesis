@@ -6,6 +6,7 @@ from scipy import linalg as sc_linalg
 from sklearn.preprocessing import normalize
 from sklearn.metrics import accuracy_score
 import jax.numpy as jnp
+from iacv import IACV
 
 
 # An SVM class which learns using a Smooth Hinge loss
@@ -117,25 +118,6 @@ class SVM_smooth:
         return 1 / 2 * jnp.linalg.norm(w) * lbd + self.loss(w, X, y, sigma)
 
     def eval_cond_num_bound(self, X, hessian_LOO):
-        # n = X.shape[0]
-        # exclude = min(n, 20)
-
-        # vals = np.empty(exclude)
-        # for i, idx in enumerate(np.random.choice(np.arange(n), size=exclude)):
-        #    d_i = np.linalg.norm(hessian_LOO[i])
-        #    X_tilde = np.delete(X, (idx), axis=0)
-        #    C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
-        #    # smooth this by 1/n-1?
-        #    vals[i] = (self.lbd_ + C * d_i) / (self.lbd_)
-
-        # return np.max(vals)
-
-        # n = X.shape[0]
-        # d_i = np.linalg.norm(hessian_LOO)
-        # C = np.linalg.norm(X.T @ X) / (n - 1)
-        ## smooth this by 1/n-1?
-        # return (self.lbd_ + C * d_i) / (self.lbd_)
-
         n = X.shape[0]
         i = np.argmax(np.linalg.norm(np.linalg.norm(hessian_LOO, axis=1), axis=1))
         d_i = np.max(hessian_LOO[i])
@@ -145,6 +127,21 @@ class SVM_smooth:
         C = np.linalg.norm(X_tilde.T @ X_tilde) / (n - 1)
 
         return (self.lbd_ + C * d_i) / (self.lbd_)
+
+    def smooth_svm_calc_update(self, f_grad, f_hess, grad_per_sample, hess_per_sample):
+        hess_minus_i = f_hess - hess_per_sample
+        grad_minus_i = f_grad - grad_per_sample
+
+        # bounds check
+        if np.linalg.norm(f_hess) > 1e5:
+            f_hess = np.zeros(self.p)
+            hess_minus_i = -hess_per_sample
+
+        # if we adjust the factor, we also need to add regularisation back
+        hess_minus_i = self.lbd_ * np.eye(self.p) + self.factor * hess_minus_i
+        grad_minus_i = self.lbd_ * self.weights_ + self.factor * grad_minus_i
+
+        return (grad_minus_i, hess_minus_i)
 
     def fit_gd_(
         self,
@@ -161,7 +158,6 @@ class SVM_smooth:
         log_eig_vals=False,
         log_accuracy=False,
         save_grads=False,
-        save_hess=False,
         save_cond_nums=False,
         save_hessian_norms=False,
         save_eig_vals=False,
@@ -175,125 +171,45 @@ class SVM_smooth:
     ):
         # ensure we have a valid factor (if needed) and learning rate
         alpha_t = eta
+        self.factor = factor
         if adjust_factor and factor is None:
-            factor = 1 / (self.n - 1)
+            self.factor = 1 / (self.n - 1)
 
         self.err_approx_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
         self.err_cv_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
-
-        grad_Z_f = jit(vmap(self.nabla_fgd_single_, in_axes=(None, 0, 0, None, None)))
-        hess_Z_f = jit(vmap(self.hess_fgd_single_, in_axes=(None, 0, 0, None, None)))
-
-        # set per-sample gradients
-        if adjust_factor:
-            grad_Z_f = jit(
-                vmap(self.nabla_fgd_single_no_factor_, in_axes=(None, 0, 0, None, None))
-            )
-            hess_Z_f = jit(
-                vmap(self.hess_fgd_single_no_factor_, in_axes=(None, 0, 0, None, None))
-            )
-
-        # define gradient functions (can be variable based on arguments)
-        nabla_function = self.nabla_fgd_
-        hess_function = self.hess_fgd_
-
-        # if we adjust to use a factor of n-1
-        if adjust_factor:
-            nabla_function = self.nabla_fgd_no_reg_no_factor_
-            hess_function = self.hess_fgd_no_reg_no_factor_
-
-        # define jax grad variables
-        if use_jax_grad:
-            nabla_function = jit(grad(self.SSVM_objective))
-            hess_function = jit(jacfwd(jacrev(self.SSVM_objective)))
-
-        if use_jax_grad:
-            grad_Z_f = jit(vmap(nabla_function, in_axes=(None, 0, 0, None, None)))
-            hess_Z_f = jit(vmap(hess_function, in_axes=(None, 0, 0, None, None)))
-
-        vmap_matmul = jit(vmap(jnp.matmul, in_axes=(0, 0)))
         loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
         loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
-        for t in range(n_iter):
-            f_grad = nabla_function(self.weights_, X, y, self.sigma_, self.lbd_)
+        p_nabla = lambda w, X, y: self.nabla_fgd_no_reg_no_factor_(
+            w, X, y, self.sigma_, self.lbd_
+        )
+        p_hess = lambda w, X, y: self.hess_fgd_no_reg_no_factor_(
+            w, X, y, self.sigma_, self.lbd_
+        )
 
+        p_nabla_single = lambda w, X, y: self.nabla_fgd_single_no_factor_(
+            w, X, y, self.sigma_, self.lbd_
+        )
+        p_hess_single = lambda w, X, y: self.hess_fgd_single_no_factor_(
+            w, X, y, self.sigma_, self.lbd_
+        )
+
+        approx_cv_obj = IACV(
+            self.n,
+            self.p,
+            p_nabla,
+            p_hess,
+            p_nabla_single,
+            p_hess_single,
+            eta,
+            calc_update=self.smooth_svm_calc_update,
+        )
+
+        for t in range(n_iter):
             if approx_cv == True:
                 start = time.time()
-                f_hess = hess_function(self.weights_, X, y, self.sigma_, self.lbd_)
-
-                # vectorised per sample hessian
-                grad_per_sample = grad_Z_f(self.weights_, X, y, self.sigma_, self.lbd_)
-                hess_per_sample = hess_Z_f(self.weights_, X, y, self.sigma_, self.lbd_)
-
-                # per sample gradient and hessian difference
-                hess_minus_i = f_hess - hess_per_sample
-                grad_minus_i = f_grad - grad_per_sample
-
-                # bounds check
-                if np.linalg.norm(f_hess) > 1e5:
-                    f_hess = np.zeros(self.p)
-                    hess_minus_i = -hess_per_sample
-
-                # if we adjust the factor, we also need to add regularisation back
-                if adjust_factor:
-                    hess_minus_i = self.lbd_ * np.eye(self.p) + factor * hess_minus_i
-                    grad_minus_i = self.lbd_ * self.weights_ + factor * grad_minus_i
-
-                    f_hess = self.lbd_ * np.eye(self.p) + 1 / self.n * f_hess
-
-                if log_cond_number or save_cond_nums:
-                    cond_num = np.linalg.cond(hess_minus_i)
-                    if save_cond_nums:
-                        self.cond_nums_.append(cond_num)
-                        self.cond_num_bound_.append(
-                            self.eval_cond_num_bound(X, hess_minus_i)
-                        )
-
-                    if log_cond_number:
-                        print(
-                            f"hessian condition number {np.mean(np.linalg.cond(f_hess))}"
-                        )
-                        print(
-                            f"mean hessian condition number {np.mean(cond_num)} | min hessian condition number {np.min(cond_num, axis=0)} | max hessian condition number {np.max(cond_num, axis=0)}"
-                        )
-
-                if log_eig_vals or save_eig_vals:
-                    eig_vals = np.linalg.eigvals(hess_minus_i)
-                    self.eig_vals_.append(eig_vals)
-
-                    if log_eig_vals:
-                        print(
-                            f"min eig value {np.min(eig_vals)} | max eig value {np.max(eig_vals)}"
-                        )
-
-                if save_hessian_norms:
-                    if np.linalg.norm(hess_minus_i) > 1e6:
-                        print(hess_minus_i)
-                        print(1 - y * (X @ self.weights_) / self.sigma_)
-                        break
-
-                    self.hess_norms_.append(
-                        (np.linalg.norm(f_hess), np.linalg.norm(hess_minus_i))
-                    )
-
-                if t >= warm_start:
-                    if t == warm_start and warm_start != 0:
-                        new_lr = eta
-                        print(f"changing learning rate from {eta} to {new_lr}")
-                        eta = new_lr
-                        self.loo_iacv_ = np.asarray([self.weights_] * self.n)
-
-                    self.loo_iacv_ = (
-                        self.loo_iacv_
-                        - alpha_t * grad_minus_i
-                        - alpha_t
-                        * vmap_matmul(hess_minus_i, (self.loo_iacv_ - self.weights_))
-                    )
-
-                if normalise:
-                    self.loo_iacv_ = normalize(self.loo_iacv_, axis=1)
-
+                approx_cv_obj.step_gd(self.weights_, X, y)
+                self.loo_iacv_ = approx_cv_obj.iterates
                 end = time.time()
 
             if cv == True:
@@ -305,8 +221,6 @@ class SVM_smooth:
                         self.loo_true_[i], X_temp, y_temp, self.sigma_, self.lbd_
                     )
                 end = time.time()
-                if normalise:
-                    self.loo_true_ = normalize(self.loo_true_, axis=1)
 
             f_grad_neutral = self.nabla_fgd_(
                 self.weights_, X, y, self.sigma_, self.lbd_
@@ -357,9 +271,6 @@ class SVM_smooth:
 
             if save_grads == True:
                 self.grads_.append(f_grad_neutral)
-
-            if save_hess == True:
-                self.hess_.append(f_hess)
 
             # normalise?
             if normalise:

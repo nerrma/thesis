@@ -2,7 +2,9 @@
 from sklearn.svm import SVC
 from sklearn.datasets import load_breast_cancer, make_classification
 from sklearn.preprocessing import StandardScaler, normalize
+from sklearn.gaussian_process.kernels import RBF
 from sklearn.metrics import accuracy_score
+from sklearn.metrics.pairwise import polynomial_kernel
 
 from sampler import sample_from_logreg
 
@@ -10,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from cv_svm import SVM_smooth
+from kernel_svm import SVM_smooth_kernel
 
 # X, y = load_breast_cancer(return_X_y=True)
 # X, y = make_classification(n_samples=100, n_features=4, random_state=10)
@@ -20,12 +23,15 @@ y[np.where(y == 0)] = -1
 
 X = StandardScaler().fit_transform(X)
 
-clf = SVM_smooth(sigma=1e-1, lbd=0)
+# clf = SVM_smooth_kernel(sigma=1e-1, lbd=1, kernel=RBF(1.0))
+# clf.fit(X, y, n_iter=1000)
+
+clf = SVM_smooth(sigma=1e-1, lbd=1)
 clf.fit(
     X,
     y,
     thresh=1e-6,
-    n_iter=4,
+    n_iter=100,
     eta=0.85 / n,
     approx_cv=True,
     cv=True,
@@ -45,9 +51,7 @@ clf.fit(
 )
 
 y_pred = clf.predict(X)
-print(
-    f"accuracy {accuracy_score(y, y_pred)} | grad {np.linalg.norm(clf.nabla_fgd_(clf.weights_, X, y, clf.sigma_, clf.lbd_))}"
-)
+print(f"accuracy {accuracy_score(y, y_pred)}")
 print(
     f"IACV: {np.mean(np.linalg.norm(clf.loo_iacv_ - clf.loo_true_, 2, axis=1))} | baseline: {np.mean(np.linalg.norm(clf.weights_ - clf.loo_true_, 2, axis=1))}"
 )
