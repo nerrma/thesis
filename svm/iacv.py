@@ -25,6 +25,9 @@ class IACV:
         self.grad_Z_f = jit(vmap(nabla_single_function, in_axes=(None, 0, 0)))
         self.hess_Z_f = jit(vmap(hess_single_function, in_axes=(None, 0, 0)))
 
+        self.grad_Z_f_kernel = jit(vmap(nabla_single_function, in_axes=(None, None, 0)))
+        self.hess_Z_f_kernel = jit(vmap(hess_single_function, in_axes=(None, None, 0)))
+
         self.iterates = np.zeros((n, p))
         self.alpha_t = eta
         self.vmap_matmul = jit(vmap(jnp.matmul, in_axes=(0, 0)))
@@ -44,12 +47,16 @@ class IACV:
 
         return (grad_minus_i, hess_minus_i)
 
-    def step_gd(self, theta, X, y):
+    def step_gd(self, theta, X, y, kernel=False):
         f_grad = self.nabla_function(theta, X, y)
         f_hess = self.hess_function(theta, X, y)
 
-        grad_per_sample = self.grad_Z_f(theta, X, y)
-        hess_per_sample = self.hess_Z_f(theta, X, y)
+        if not kernel:
+            grad_per_sample = self.grad_Z_f(theta, X, y)
+            hess_per_sample = self.hess_Z_f(theta, X, y)
+        else:
+            grad_per_sample = self.grad_Z_f_kernel(theta, X, y)
+            hess_per_sample = self.hess_Z_f_kernel(theta, X, y)
 
         grad_minus_i, hess_minus_i = self.calc_update(
             f_grad, f_hess, grad_per_sample, hess_per_sample

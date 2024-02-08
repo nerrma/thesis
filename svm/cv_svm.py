@@ -7,6 +7,7 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics import accuracy_score
 import jax.numpy as jnp
 from iacv import IACV
+from true_cv import TrueCV
 
 
 # An SVM class which learns using a Smooth Hinge loss
@@ -170,7 +171,6 @@ class SVM_smooth:
         factor=None,
     ):
         # ensure we have a valid factor (if needed) and learning rate
-        alpha_t = eta
         self.factor = factor
         if adjust_factor and factor is None:
             self.factor = 1 / (self.n - 1)
@@ -194,7 +194,7 @@ class SVM_smooth:
             w, X, y, self.sigma_, self.lbd_
         )
 
-        approx_cv_obj = IACV(
+        self.approx_cv_obj = IACV(
             self.n,
             self.p,
             p_nabla,
@@ -205,21 +205,18 @@ class SVM_smooth:
             calc_update=self.smooth_svm_calc_update,
         )
 
+        p_nabla_full = lambda w, X, y: self.nabla_fgd_(w, X, y, self.sigma_, self.lbd_)
+        self.true_cv_obj = TrueCV(self.n, self.p, p_nabla_full, eta)
+
         for t in range(n_iter):
             if approx_cv == True:
                 start = time.time()
-                approx_cv_obj.step_gd(self.weights_, X, y)
-                self.loo_iacv_ = approx_cv_obj.iterates
+                self.approx_cv_obj.step_gd(self.weights_, X, y)
                 end = time.time()
 
             if cv == True:
                 start = time.time()
-                for i in range(self.n):
-                    X_temp = np.delete(X, (i), axis=0)
-                    y_temp = np.delete(y, (i), axis=0)
-                    self.loo_true_[i] = self.loo_true_[i] - eta * self.nabla_fgd_(
-                        self.loo_true_[i], X_temp, y_temp, self.sigma_, self.lbd_
-                    )
+                self.true_cv_obj.step_gd(X, y)
                 end = time.time()
 
             f_grad_neutral = self.nabla_fgd_(
@@ -241,29 +238,33 @@ class SVM_smooth:
 
             if log_iacv == True:
                 print(
-                    f"| IACV: {np.mean(np.linalg.norm(self.loo_iacv_ - self.loo_true_, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.weights_ - self.loo_true_, 2, axis=1)):.8f}"
+                    f"| IACV: {np.mean(np.linalg.norm(self.approx_cv_obj.iterates - self.true_cv_obj.iterates, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.weights_ - self.true_cv_obj.iterates, 2, axis=1)):.8f}"
                 )
             elif log_iter or log_accuracy:
                 print("\n", end="")
 
             if save_err_approx:
                 self.err_approx_["IACV"][t] = np.mean(
-                    np.linalg.norm(self.loo_iacv_ - self.loo_true_, 2, axis=1)
+                    np.linalg.norm(
+                        self.approx_cv_obj.iterates - self.true_cv_obj.iterates,
+                        2,
+                        axis=1,
+                    )
                 )
 
                 self.err_approx_["baseline"][t] = np.mean(
-                    np.linalg.norm(self.weights_ - self.loo_true_, 2, axis=1)
+                    np.linalg.norm(self.weights_ - self.true_cv_obj.iterates, 2, axis=1)
                 )
 
             if save_err_cv:
                 self.err_cv_["IACV"][t] = np.abs(
-                    loss_vmap(self.loo_iacv_, X, y, self.sigma_)
-                    - loss_vmap(self.loo_true_, X, y, self.sigma_)
+                    loss_vmap(self.approx_cv_obj.iterates, X, y, self.sigma_)
+                    - loss_vmap(self.true_cv_obj.iterates, X, y, self.sigma_)
                 ).mean()
 
                 self.err_cv_["baseline"][t] = np.abs(
                     loss_vmap_fixed_w(self.weights_, X, y, self.sigma_)
-                    - loss_vmap(self.loo_true_, X, y, self.sigma_)
+                    - loss_vmap(self.true_cv_obj.iterates, X, y, self.sigma_)
                 ).mean()
 
             # update weights
@@ -271,12 +272,6 @@ class SVM_smooth:
 
             if save_grads == True:
                 self.grads_.append(f_grad_neutral)
-
-            # normalise?
-            if normalise:
-                self.weights_ = normalize(
-                    self.weights_.reshape(-1, 1), axis=0
-                ).flatten()
 
     def fit(
         self,
@@ -296,12 +291,6 @@ class SVM_smooth:
         self.weights_ = np.zeros(self.p)
         if init_w is not None:
             self.weights_ = init_w
-
-        self.loo_true_ = np.zeros((self.n, self.p))
-        self.loo_iacv_ = np.zeros((self.n, self.p))
-        if init_w is not None:
-            self.loo_true_ = np.asarray([init_w] * self.n)
-            self.loo_iacv_ = np.asarray([init_w] * self.n)
 
         self.fit_gd_(
             X,
