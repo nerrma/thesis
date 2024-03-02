@@ -47,7 +47,7 @@ class IACV:
 
         return (grad_minus_i, hess_minus_i)
 
-    def step_gd(self, theta, X, y, kernel=False):
+    def step_gd(self, theta, X, y, kernel=False, full_theta=None, **kwargs):
         f_grad = self.nabla_function(theta, X, y)
         f_hess = self.hess_function(theta, X, y)
 
@@ -59,11 +59,13 @@ class IACV:
             hess_per_sample = self.hess_Z_f_kernel(theta, X, y)
 
         grad_minus_i, hess_minus_i = self.calc_update(
-            f_grad, f_hess, grad_per_sample, hess_per_sample
+            f_grad, f_hess, grad_per_sample, hess_per_sample, **kwargs
         )
 
+        theta_comp = theta if full_theta is None else full_theta
         self.iterates = (
             self.iterates
             - self.alpha_t * grad_minus_i
-            - self.alpha_t * self.vmap_matmul(hess_minus_i, (self.iterates - theta))
+            - self.alpha_t
+            * self.vmap_matmul(hess_minus_i, (self.iterates - theta_comp))
         )

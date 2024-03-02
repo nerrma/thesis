@@ -104,8 +104,9 @@ class SVM_smooth_kernel:
         return hess
 
     def hess_fgd_no_reg_no_factor_(self, u, gram, y, sigma, lbd):
+        n = gram.shape[0]
         d = self.Phi_m_prime((1 - y * (gram @ u)) / sigma) / sigma
-        hess = np.zeros((self.n, self.n)) + gram.T * d @ gram
+        hess = np.zeros((n, n)) + gram.T * d @ gram
 
         return hess
 
@@ -116,13 +117,14 @@ class SVM_smooth_kernel:
         return hess
 
     def hess_fgd_single_no_factor_(self, u, gram, y, sigma, lbd):
+        n = gram.shape[0]
         d = self.Phi_m_prime_jax((1 - y * (gram @ u)) / sigma) / sigma
-        hess = np.zeros((self.n, self.n)) + gram.T * d @ gram
+        hess = np.zeros((n, n)) + gram.T * d @ gram
 
         return hess
 
     def smooth_svm_kernel_calc_update(
-        self, f_grad, f_hess, grad_per_sample, hess_per_sample
+        self, f_grad, f_hess, grad_per_sample, hess_per_sample, batch_idxs=[]
     ):
         hess_minus_i = f_hess - hess_per_sample
         grad_minus_i = f_grad - grad_per_sample
@@ -131,6 +133,16 @@ class SVM_smooth_kernel:
         if np.linalg.norm(f_hess) > 1e5:
             f_hess = np.zeros(self.p)
             hess_minus_i = -hess_per_sample
+
+        # if we are in sgd, extend the arrays to ensure we have the right shape
+        if len(batch_idxs) > 0:
+            hess_ext = np.zeros((self.n, self.n, self.n))
+            hess_ext[np.ix_(batch_idxs, batch_idxs, batch_idxs)] = hess_minus_i
+            hess_minus_i = hess_ext
+
+            grad_ext = np.zeros((self.n, self.n))
+            grad_ext[np.ix_(batch_idxs, batch_idxs)] = grad_minus_i
+            grad_minus_i = grad_ext
 
         # if we adjust the factor, we also need to add regularisation back
         hess_minus_i = self.lbd_ * self.gram_.T + self.factor * hess_minus_i
@@ -144,7 +156,7 @@ class SVM_smooth_kernel:
     def SSVM_objective(self, u, gram, y, sigma, lbd):
         return 1 / 2 * (u.T @ gram @ u) * lbd + self.loss(u, gram, y, sigma)
 
-    def fit_gd_(
+    def run_fit_(
         self,
         X: np.ndarray,
         y: np.ndarray,
@@ -158,6 +170,8 @@ class SVM_smooth_kernel:
         log_iter=False,
         save_err_approx=False,
         save_err_cv=False,
+        sgd=False,
+        batch_size=0,
     ):
         self.gram_ = self.kernel_(X, X, **self.kernel_args_)
         self.X = X
@@ -195,19 +209,48 @@ class SVM_smooth_kernel:
         loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
         loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
+        batch_idxs = []
+        batch_u = np.empty(0)
+        batch_gram = np.empty(0)
+        batch_y = np.empty(0)
         for t in range(n_iter):
+            if sgd:
+                batch_idxs = np.random.choice(np.arange(self.n), size=batch_size)
+                batch_u = self.u_[batch_idxs]
+                batch_gram = self.gram_[np.ix_(batch_idxs, batch_idxs)]
+                batch_y = y[batch_idxs]
+
             if approx_cv == True:
-                self.approx_cv_obj.step_gd(self.u_, self.gram_, y, kernel=False)
+                if sgd:
+                    self.approx_cv_obj.step_gd(
+                        batch_u,
+                        batch_gram,
+                        batch_y,
+                        full_theta=self.u_,
+                        kernel=False,
+                        batch_idxs=batch_idxs,
+                    )
+                else:
+                    self.approx_cv_obj.step_gd(self.u_, self.gram_, y, kernel=False)
 
             if cv == True:
-                self.true_cv_obj.step_gd_kernel(self.gram_, y)
+                if sgd:
+                    self.true_cv_obj.step_gd_kernel(batch_gram, batch_y)
+                else:
+                    self.true_cv_obj.step_gd_kernel(self.gram_, y)
 
-            f_grad = self.nabla_fgd_(self.u_, self.gram_, y, self.sigma_, self.lbd_)
+            if sgd:
+                f_grad = np.zeros(self.n)
+                f_grad[batch_idxs] = self.nabla_fgd_(
+                    batch_u, batch_gram, batch_y, self.sigma_, self.lbd_
+                )
+            else:
+                f_grad = self.nabla_fgd_(self.u_, self.gram_, y, self.sigma_, self.lbd_)
             self.u_ = self.u_ - eta * f_grad
 
             if log_iter == True:
                 print(
-                    f"iter {t} | grad {np.linalg.norm(f_grad):.5f} | objective {self.SSVM_objective(self.u_, X, y, self.sigma_, self.lbd_):.5f} ",
+                    f"iter {t} | grad {np.linalg.norm(f_grad):.5f} | objective {self.SSVM_objective(self.u_, self.gram_, y, self.sigma_, self.lbd_):.5f} ",
                     end="",
                 )
 
@@ -263,7 +306,7 @@ class SVM_smooth_kernel:
             self.u_ = init_u
 
         self.factor = 1 / (self.n - 1)
-        self.fit_gd_(
+        self.run_fit_(
             X,
             y,
             eta=eta,
