@@ -101,6 +101,7 @@ def run_sim(n, p, n_iter=250, lbd_v=None):
     mask = ~np.eye(n, dtype=bool)
     for t in range(0, n_iter):
         support = np.where(theta != 0)[0]
+        # not_support = np.where(np.isclose(theta, 0))[0]
         supports.append(support)
 
         print(f"iter: {t} | support size: {len(support)}")
@@ -110,12 +111,6 @@ def run_sim(n, p, n_iter=250, lbd_v=None):
 
         theta_s = np.zeros(theta.shape)
         theta_s[support] = theta[support]
-
-        X_s_true = np.zeros(X.shape)
-        X_s_true[:, true_support] = X[:, true_support]
-
-        theta_s_true = np.zeros(theta.shape)
-        theta_s_true[true_support] = theta[true_support]
 
         # IACV block
         iacv_start = time.time()
@@ -144,11 +139,11 @@ def run_sim(n, p, n_iter=250, lbd_v=None):
         # theta_s = jnp.compress(supp_bool, theta)
         # theta_cv_sparse_compress = jnp.compress(supp_bool, theta_cv_sparse, axis=1)
 
-        f_grad_s = jnp.nan_to_num(nabla_F(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
-        f_hess_s = jnp.nan_to_num(hess_F(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
+        f_grad_s = jnp.nan_to_num(nabla_F(theta_s, X_s, y, lbd_v), nan=lbd_v)
+        f_hess_s = jnp.nan_to_num(hess_F(theta_s, X_s, y, lbd_v), nan=lbd_v)
 
-        grad_Z_s = jnp.nan_to_num(grad_Z_f(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
-        hess_Z_s = jnp.nan_to_num(hess_Z_f(theta_s_true, X_s_true, y, lbd_v), nan=lbd_v)
+        grad_Z_s = jnp.nan_to_num(grad_Z_f(theta_s, X_s, y, lbd_v), nan=lbd_v)
+        hess_Z_s = jnp.nan_to_num(hess_Z_f(theta_s, X_s, y, lbd_v), nan=lbd_v)
 
         grad_minus_s = f_grad_s - grad_Z_s
         hess_minus_s = f_hess_s - hess_Z_s
@@ -269,11 +264,11 @@ def run_sim(n, p, n_iter=250, lbd_v=None):
 
 
 # if "__main__":
-#    n = 200
-#    p = 400
-#    special_lambda = 0.2 * np.sqrt(np.log(p) / n)
+#    n = 20
+#    p = 50
+#    special_lambda = 0.25 * np.sqrt(np.log(p) / n)
 #    print(f"special_lambda is {special_lambda}")
-#    err_approx, runtime, supports, params = run_sim(
+#    err_approx, _, runtime, supports, params = run_sim(
 #        n=n, p=p, n_iter=100, lbd_v=special_lambda
 #    )
 #

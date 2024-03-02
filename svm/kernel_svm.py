@@ -24,6 +24,8 @@ class SVM_smooth_kernel:
         self.u_ = np.zeros(0)
         self.gram_ = np.zeros(0)
         self.factor = self.n
+        self.err_approx_ = {"IACV": [], "baseline": []}
+        self.err_cv_ = {"IACV": [], "baseline": []}
 
     def Phi_m(self, v):
         return (1 + v / np.sqrt(1 + v**2)) / 2
@@ -151,6 +153,11 @@ class SVM_smooth_kernel:
         warm_start=0,
         cv=False,
         approx_cv=False,
+        log_iacv=False,
+        log_accuracy=False,
+        log_iter=False,
+        save_err_approx=False,
+        save_err_cv=False,
     ):
         self.gram_ = self.kernel_(X, X, **self.kernel_args_)
         self.X = X
@@ -181,51 +188,62 @@ class SVM_smooth_kernel:
             calc_update=self.smooth_svm_kernel_calc_update,
         )
 
+        self.err_approx_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
+        self.err_cv_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
         p_nabla_full = lambda w, X, y: self.nabla_fgd_(w, X, y, self.sigma_, self.lbd_)
         self.true_cv_obj = TrueCV(self.n, self.n, p_nabla_full, eta)
+        loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
+        loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
         for t in range(n_iter):
             if approx_cv == True:
                 self.approx_cv_obj.step_gd(self.u_, self.gram_, y, kernel=False)
-            # grad_minus_i = np.zeros((self.n, self.n))
-            # hess_minus_i = np.zeros((self.n, self.n, self.n))
-
-            # for i in range(self.n):
-            #    y_temp = y.copy()
-            #    y_temp[i] = 0
-            #    grad_minus_i[i] = self.nabla_fgd_(
-            #        self.u_, self.gram_, y_temp, self.sigma_, self.lbd_
-            #    )
-
-            #    hess_minus_i[i] = self.hess_fgd_(
-            #        self.u_, self.gram_, y_temp, self.sigma_, self.lbd_
-            #    )
-
-            # self.approx_cv_obj.iterates = (
-            #    self.approx_cv_obj.iterates
-            #    - eta * grad_minus_i
-            #    - eta
-            #    * self.approx_cv_obj.vmap_matmul(
-            #        hess_minus_i, (self.approx_cv_obj.iterates - self.u_)
-            #    )
-            # )
 
             if cv == True:
                 self.true_cv_obj.step_gd_kernel(self.gram_, y)
 
             f_grad = self.nabla_fgd_(self.u_, self.gram_, y, self.sigma_, self.lbd_)
-
             self.u_ = self.u_ - eta * f_grad
-            # print(
-            #    f"iter {t} | f_grad {np.linalg.norm(f_grad):.4f} | objective {self.SSVM_objective(self.u_, self.gram_, y, self.sigma_, self.lbd_):.4f} ",
-            #    end="",
-            # )
 
-            # print(f"| accuracy: {accuracy_score(y, self.predict(X))} ", end="")
+            if log_iter == True:
+                print(
+                    f"iter {t} | grad {np.linalg.norm(f_grad):.5f} | objective {self.SSVM_objective(self.u_, X, y, self.sigma_, self.lbd_):.5f} ",
+                    end="",
+                )
 
-            # print(
-            #    f"| IACV: {np.mean(np.linalg.norm(self.approx_cv_obj.iterates - self.true_cv_obj.iterates, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.u_ - self.true_cv_obj.iterates, 2, axis=1)):.8f}"
-            # )
+            if log_accuracy == True:
+                print(f"| accuracy: {accuracy_score(y, self.predict(X))} ", end="")
+
+            if log_iacv == True:
+                print(
+                    f"| IACV: {np.mean(np.linalg.norm(self.approx_cv_obj.iterates - self.true_cv_obj.iterates, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.u_ - self.true_cv_obj.iterates, 2, axis=1)):.8f}"
+                )
+            elif log_iter or log_accuracy:
+                print("\n", end="")
+
+            if save_err_approx:
+                self.err_approx_["IACV"][t] = np.mean(
+                    np.linalg.norm(
+                        self.approx_cv_obj.iterates - self.true_cv_obj.iterates,
+                        2,
+                        axis=1,
+                    )
+                )
+
+                self.err_approx_["baseline"][t] = np.mean(
+                    np.linalg.norm(self.u_ - self.true_cv_obj.iterates, 2, axis=1)
+                )
+
+            if save_err_cv:
+                self.err_cv_["IACV"][t] = np.abs(
+                    loss_vmap(self.approx_cv_obj.iterates, self.gram_, y, self.sigma_)
+                    - loss_vmap(self.true_cv_obj.iterates, self.gram_, y, self.sigma_)
+                ).mean()
+
+                self.err_cv_["baseline"][t] = np.abs(
+                    loss_vmap_fixed_w(self.u_, self.gram_, y, self.sigma_)
+                    - loss_vmap(self.true_cv_obj.iterates, self.gram_, y, self.sigma_)
+                ).mean()
 
     def fit(
         self,
