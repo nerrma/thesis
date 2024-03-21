@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 from jax import vmap, jacrev, jacfwd, grad, jit
+from jax.experimental import sparse
 from sklearn.metrics import accuracy_score
 import jax.numpy as jnp
 
@@ -156,6 +157,15 @@ class SVM_smooth_kernel:
     def SSVM_objective(self, u, gram, y, sigma, lbd):
         return 1 / 2 * (u.T @ gram @ u) * lbd + self.loss(u, gram, y, sigma)
 
+    def batchify(self, tensor, batch_idxs):
+        sparse_tensor = np.zeros_like(tensor)
+        if len(tensor.shape) > 1:
+            sparse_tensor[np.ix_(*batch_idxs)] = tensor[np.ix_(*batch_idxs)]
+        else:
+            sparse_tensor[batch_idxs] = tensor[batch_idxs]
+
+        return sparse.BCOO.fromdense(sparse_tensor)
+
     def run_fit_(
         self,
         X: np.ndarray,
@@ -169,6 +179,7 @@ class SVM_smooth_kernel:
         log_accuracy=False,
         log_iter=False,
         save_err_approx=False,
+        save_cond_num=False,
         save_err_cv=False,
         sgd=False,
         batch_size=0,
@@ -210,39 +221,44 @@ class SVM_smooth_kernel:
         loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
         batch_idxs = []
-        batch_u = np.empty(0)
-        batch_gram = np.empty(0)
-        batch_y = np.empty(0)
+        sparse_u = np.empty(0)
+        sparse_gram = np.empty(0)
+        sparse_y = np.empty(0)
         for t in range(n_iter):
             if sgd:
                 batch_idxs = np.random.choice(np.arange(self.n), size=batch_size)
-                batch_u = self.u_[batch_idxs]
-                batch_gram = self.gram_[np.ix_(batch_idxs, batch_idxs)]
-                batch_y = y[batch_idxs]
+
+                sparse_u = self.batchify(self.u_, batch_idxs)
+                sparse_gram = self.batchify(self.gram_, (batch_idxs, batch_idxs))
+                sparse_y = self.batchify(y, batch_idxs)
 
             if approx_cv == True:
                 if sgd:
                     self.approx_cv_obj.step_gd(
-                        batch_u,
-                        batch_gram,
-                        batch_y,
-                        full_theta=self.u_,
+                        sparse_u,
+                        sparse_gram,
+                        sparse_y,
                         kernel=False,
                         batch_idxs=batch_idxs,
                     )
                 else:
-                    self.approx_cv_obj.step_gd(self.u_, self.gram_, y, kernel=False)
+                    self.approx_cv_obj.step_gd(
+                        self.u_,
+                        self.gram_,
+                        y,
+                        kernel=False,
+                        save_cond_num=save_cond_num,
+                    )
 
             if cv == True:
                 if sgd:
-                    self.true_cv_obj.step_gd_kernel(batch_gram, batch_y)
+                    self.true_cv_obj.step_gd_kernel(sparse_gram, sparse_y)
                 else:
                     self.true_cv_obj.step_gd_kernel(self.gram_, y)
 
             if sgd:
-                f_grad = np.zeros(self.n)
-                f_grad[batch_idxs] = self.nabla_fgd_(
-                    batch_u, batch_gram, batch_y, self.sigma_, self.lbd_
+                f_grad = self.nabla_fgd_(
+                    sparse_u, sparse_gram, sparse_y, self.sigma_, self.lbd_
                 )
             else:
                 f_grad = self.nabla_fgd_(self.u_, self.gram_, y, self.sigma_, self.lbd_)

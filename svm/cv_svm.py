@@ -21,10 +21,6 @@ class SVM_smooth:
 
         self.weights_ = np.zeros(0)
         self.grads_ = []
-        self.cond_nums_ = []
-        self.cond_num_bound_ = []
-        self.hess_norms_ = []
-        self.eig_vals_ = []
         self.err_approx_ = {"IACV": [], "baseline": []}
         self.err_cv_ = {"IACV": [], "baseline": []}
         self.hess_ = []
@@ -211,7 +207,9 @@ class SVM_smooth:
         for t in range(n_iter):
             if approx_cv == True:
                 start = time.time()
-                self.approx_cv_obj.step_gd(self.weights_, X, y)
+                self.approx_cv_obj.step_gd(
+                    self.weights_, X, y, save_cond_num=save_cond_nums
+                )
                 end = time.time()
 
             if cv == True:
@@ -223,8 +221,16 @@ class SVM_smooth:
                 self.weights_, X, y, self.sigma_, self.lbd_
             )
 
+            # update weights
+            self.weights_ = self.weights_ - eta * f_grad_neutral
+
             if np.linalg.norm(f_grad_neutral) < thresh:
                 print(f"stopping early at iteration {t}")
+                for k in self.err_cv_:
+                    self.err_cv_[k] = self.err_cv_[k][:t]
+
+                for k in self.err_approx_:
+                    self.err_approx_[k] = self.err_approx_[k][:t]
                 break
 
             if log_iter == True:
@@ -266,9 +272,6 @@ class SVM_smooth:
                     loss_vmap_fixed_w(self.weights_, X, y, self.sigma_)
                     - loss_vmap(self.true_cv_obj.iterates, X, y, self.sigma_)
                 ).mean()
-
-            # update weights
-            self.weights_ = self.weights_ - eta * f_grad_neutral
 
             if save_grads == True:
                 self.grads_.append(f_grad_neutral)

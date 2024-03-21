@@ -14,28 +14,34 @@ import matplotlib.pyplot as plt
 from cv_svm import SVM_smooth
 from kernel_svm import SVM_smooth_kernel
 
-X, y = load_breast_cancer(return_X_y=True)
+# X, y = load_breast_cancer(return_X_y=True)
 # X, y = make_classification(n_samples=100, n_features=100, random_state=10)
-# X, theta_star, y = sample_from_logreg(n=250, p=20)
+X, theta_star, y = sample_from_logreg(n=250, p=20)
 n = X.shape[0]
 p = X.shape[1]
 y[np.where(y == 0)] = -1
 
 X = StandardScaler().fit_transform(X)
 
-clf = SVM_smooth_kernel(sigma=1e-2, lbd=1, kernel=RBF(1))
+clf = SVM_smooth_kernel(sigma=1e-5, lbd=1, kernel=RBF(8))
 clf.fit(
     X,
     y,
     eta=0.5 / n,
-    n_iter=10,
-    cv=False,
+    n_iter=100,
+    cv=True,
     approx_cv=True,
     log_iter=True,
+    log_iacv=True,
     save_err_approx=True,
     save_err_cv=True,
     sgd=False,
     batch_size=20,
+)
+
+print(f"Mul of gram matrix min and max {np.max(clf.gram_)/np.min(clf.gram_)}")
+print(
+    f"Inv mul {np.linalg.norm(np.linalg.inv(clf.gram_)) * np.linalg.norm(clf.gram_) }"
 )
 
 y_pred = clf.predict(X)

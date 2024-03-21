@@ -2,6 +2,7 @@
 import numpy as np
 from jax import vmap, jit
 import jax.numpy as jnp
+from jax.experimental import sparse
 
 
 class IACV:
@@ -32,6 +33,8 @@ class IACV:
         self.alpha_t = eta
         self.vmap_matmul = jit(vmap(jnp.matmul, in_axes=(0, 0)))
 
+        self.cond_nums = []
+
         self.calc_update = self.calc_update_
         if calc_update is not None:
             self.calc_update = calc_update
@@ -47,7 +50,7 @@ class IACV:
 
         return (grad_minus_i, hess_minus_i)
 
-    def step_gd(self, theta, X, y, kernel=False, full_theta=None, **kwargs):
+    def step_gd(self, theta, X, y, kernel=False, save_cond_num=False, **kwargs):
         f_grad = self.nabla_function(theta, X, y)
         f_hess = self.hess_function(theta, X, y)
 
@@ -62,10 +65,13 @@ class IACV:
             f_grad, f_hess, grad_per_sample, hess_per_sample, **kwargs
         )
 
-        theta_comp = theta if full_theta is None else full_theta
+        if save_cond_num:
+            eig = np.linalg.eigvalsh(hess_minus_i)
+            # print(f"max eig: {np.max(eig)}, min eig: {np.min(eig)}")
+            self.cond_nums.append((np.min(eig), np.max(eig)))
+
         self.iterates = (
             self.iterates
             - self.alpha_t * grad_minus_i
-            - self.alpha_t
-            * self.vmap_matmul(hess_minus_i, (self.iterates - theta_comp))
+            - self.alpha_t * self.vmap_matmul(hess_minus_i, (self.iterates - theta))
         )
