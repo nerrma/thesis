@@ -7,6 +7,8 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics import accuracy_score
 import jax.numpy as jnp
 from iacv import IACV
+from ns import NS
+from ij import IJ
 from true_cv import TrueCV
 
 
@@ -21,8 +23,6 @@ class SVM_smooth:
 
         self.weights_ = np.zeros(0)
         self.grads_ = []
-        self.err_approx_ = {"IACV": [], "baseline": []}
-        self.err_cv_ = {"IACV": [], "baseline": []}
         self.hess_ = []
 
     def Phi_m(self, v):
@@ -147,6 +147,7 @@ class SVM_smooth:
         eta=1e-4,
         cv=False,
         approx_cv=False,
+        approx_cv_types=["IACV"],
         n_iter=1000,
         thresh=1e-8,
         log_iacv=False,
@@ -171,8 +172,18 @@ class SVM_smooth:
         if adjust_factor and factor is None:
             self.factor = 1 / (self.n - 1)
 
-        self.err_approx_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
-        self.err_cv_ = {"IACV": np.empty(n_iter), "baseline": np.empty(n_iter)}
+        self.err_approx_ = {
+            "IACV": np.empty(n_iter),
+            "baseline": np.empty(n_iter),
+            "NS": np.empty(n_iter),
+            "IJ": np.empty(n_iter),
+        }
+        self.err_cv_ = {
+            "IACV": np.empty(n_iter),
+            "baseline": np.empty(n_iter),
+            "NS": np.empty(n_iter),
+            "IJ": np.empty(n_iter),
+        }
         loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
         loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
@@ -201,15 +212,47 @@ class SVM_smooth:
             calc_update=self.smooth_svm_calc_update,
         )
 
+        self.ns_cv_obj = NS(
+            self.n,
+            self.p,
+            p_nabla,
+            p_hess,
+            p_nabla_single,
+            p_hess_single,
+            eta,
+            calc_update=self.smooth_svm_calc_update,
+        )
+
+        self.ij_cv_obj = IJ(
+            self.n,
+            self.p,
+            p_nabla,
+            p_hess,
+            p_nabla_single,
+            p_hess_single,
+            eta,
+            calc_update=self.smooth_svm_calc_update,
+        )
+
         p_nabla_full = lambda w, X, y: self.nabla_fgd_(w, X, y, self.sigma_, self.lbd_)
         self.true_cv_obj = TrueCV(self.n, self.p, p_nabla_full, eta)
 
         for t in range(n_iter):
             if approx_cv == True:
-                start = time.time()
-                self.approx_cv_obj.step_gd(
-                    self.weights_, X, y, save_cond_num=save_cond_nums
-                )
+                if "IACV" in approx_cv_types:
+                    self.approx_cv_obj.step_gd(
+                        self.weights_, X, y, save_cond_num=save_cond_nums
+                    )
+
+                if "NS" in approx_cv_types:
+                    self.ns_cv_obj.step_gd(
+                        self.weights_, X, y, save_cond_num=save_cond_nums
+                    )
+
+                if "IJ" in approx_cv_types:
+                    self.ij_cv_obj.step_gd(
+                        self.weights_, X, y, save_cond_num=save_cond_nums
+                    )
                 end = time.time()
 
             if cv == True:
@@ -244,6 +287,10 @@ class SVM_smooth:
 
             if log_iacv == True:
                 print(
+                    f"| NS: {np.mean(np.linalg.norm(self.ns_cv_obj.iterates - self.true_cv_obj.iterates, 2, axis=1)):.8f} ",
+                    end="",
+                )
+                print(
                     f"| IACV: {np.mean(np.linalg.norm(self.approx_cv_obj.iterates - self.true_cv_obj.iterates, 2, axis=1)):.8f} | baseline: {np.mean(np.linalg.norm(self.weights_ - self.true_cv_obj.iterates, 2, axis=1)):.8f}"
                 )
             elif log_iter or log_accuracy:
@@ -258,6 +305,22 @@ class SVM_smooth:
                     )
                 )
 
+                self.err_approx_["NS"][t] = np.mean(
+                    np.linalg.norm(
+                        self.ns_cv_obj.iterates - self.true_cv_obj.iterates,
+                        2,
+                        axis=1,
+                    )
+                )
+
+                self.err_approx_["IJ"][t] = np.mean(
+                    np.linalg.norm(
+                        self.ij_cv_obj.iterates - self.true_cv_obj.iterates,
+                        2,
+                        axis=1,
+                    )
+                )
+
                 self.err_approx_["baseline"][t] = np.mean(
                     np.linalg.norm(self.weights_ - self.true_cv_obj.iterates, 2, axis=1)
                 )
@@ -265,6 +328,16 @@ class SVM_smooth:
             if save_err_cv:
                 self.err_cv_["IACV"][t] = np.abs(
                     loss_vmap(self.approx_cv_obj.iterates, X, y, self.sigma_)
+                    - loss_vmap(self.true_cv_obj.iterates, X, y, self.sigma_)
+                ).mean()
+
+                self.err_cv_["NS"][t] = np.abs(
+                    loss_vmap(self.ns_cv_obj.iterates, X, y, self.sigma_)
+                    - loss_vmap(self.true_cv_obj.iterates, X, y, self.sigma_)
+                ).mean()
+
+                self.err_cv_["IJ"][t] = np.abs(
+                    loss_vmap(self.ij_cv_obj.iterates, X, y, self.sigma_)
                     - loss_vmap(self.true_cv_obj.iterates, X, y, self.sigma_)
                 ).mean()
 
