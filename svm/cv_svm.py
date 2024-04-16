@@ -152,6 +152,8 @@ class SVM_smooth:
         thresh=1e-8,
         log_iacv=False,
         log_iter=False,
+        sgd=False,
+        batch_size=20,
         log_cond_number=False,
         log_eig_vals=False,
         log_accuracy=False,
@@ -238,11 +240,22 @@ class SVM_smooth:
         self.true_cv_obj = TrueCV(self.n, self.p, p_nabla_full, eta)
 
         for t in range(n_iter):
+            idxs = np.random.choice(np.arange(0, self.n), size=batch_size)
             if approx_cv == True:
+                start = time.time()
                 if "IACV" in approx_cv_types:
-                    self.approx_cv_obj.step_gd(
-                        self.weights_, X, y, save_cond_num=save_cond_nums
-                    )
+                    if sgd:
+                        self.approx_cv_obj.step_sgd(
+                            self.weights_,
+                            X[idxs],
+                            y[idxs],
+                            idxs,
+                            save_cond_num=save_cond_nums,
+                        )
+                    else:
+                        self.approx_cv_obj.step_gd(
+                            self.weights_, X, y, save_cond_num=save_cond_nums
+                        )
 
                 if "NS" in approx_cv_types:
                     self.ns_cv_obj.step_gd(
@@ -257,12 +270,21 @@ class SVM_smooth:
 
             if cv == True:
                 start = time.time()
-                self.true_cv_obj.step_gd(X, y)
+                if sgd:
+                    self.true_cv_obj.step_sgd(X[idxs], y[idxs], idxs)
+                else:
+                    self.true_cv_obj.step_gd(X, y)
                 end = time.time()
 
-            f_grad_neutral = self.nabla_fgd_(
-                self.weights_, X, y, self.sigma_, self.lbd_
-            )
+            f_grad_neutral = jnp.empty(())
+            if sgd:
+                f_grad_neutral = self.nabla_fgd_(
+                    self.weights_, X[idxs], y[idxs], self.sigma_, self.lbd_
+                )
+            else:
+                f_grad_neutral = self.nabla_fgd_(
+                    self.weights_, X, y, self.sigma_, self.lbd_
+                )
 
             # update weights
             self.weights_ = self.weights_ - eta * f_grad_neutral

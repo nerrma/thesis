@@ -27,3 +27,26 @@ class IACV(ACV_Obj):
             - self.alpha_t * grad_minus_i
             - self.alpha_t * self.vmap_matmul(hess_minus_i, (self.iterates - theta))
         )
+
+    def step_sgd(
+        self, theta, X_batch, y_batch, idxs, kernel=False, save_cond_num=False, **kwargs
+    ):
+        f_grad = self.nabla_function(theta, X_batch, y_batch)
+        f_hess = self.hess_function(theta, X_batch, y_batch)
+
+        grad_per_sample = self.grad_Z_f(theta, X_batch, y_batch)
+        hess_per_sample = self.hess_Z_f(theta, X_batch, y_batch)
+
+        grad_minus_i, hess_minus_i = self.calc_update(
+            f_grad, f_hess, grad_per_sample, hess_per_sample, **kwargs
+        )
+
+        if save_cond_num:
+            self.cond_nums.append(np.linalg.cond(hess_minus_i))
+
+        self.iterates[idxs] = (
+            self.iterates[idxs]
+            - self.alpha_t * grad_minus_i
+            - self.alpha_t
+            * self.vmap_matmul(hess_minus_i, (self.iterates[idxs] - theta))
+        )

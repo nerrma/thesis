@@ -54,3 +54,6 @@ class ACV_Obj:
 
     def step_gd(self, theta, X, y, kernel=False, save_cond_num=False, **kwargs):
         NotImplementedError()
+
+    def step_sgd(self, theta, X, y, kernel=False, save_cond_num=False, **kwargs):
+        NotImplementedError()

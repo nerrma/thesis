@@ -26,6 +26,14 @@ class TrueCV:
                 self.iterates[i], X_temp, y_temp
             )
 
+    def step_sgd(self, X, y, idxs):
+        for i, idx in enumerate(idxs):
+            X_temp = np.delete(X, (i), axis=0)
+            y_temp = np.delete(y, (i), axis=0)
+            self.iterates[idx] = self.iterates[idx] - self.eta * self.nabla_function(
+                self.iterates[idx], X_temp, y_temp
+            )
+
     def step_gd_kernel(self, gram, y):
         for i in range(self.n):
             # zero out gram matrix

@@ -16,38 +16,39 @@ from kernel_svm import SVM_smooth_kernel
 
 # X, y = load_breast_cancer(return_X_y=True)
 # X, y = make_classification(n_samples=100, n_features=100, random_state=10)
-X, theta_star, y = sample_from_logreg(n=250, p=20)
+X, theta_star, y = sample_from_logreg(n=850, p=50)
 n = X.shape[0]
 p = X.shape[1]
 y[np.where(y == 0)] = -1
 
 X = StandardScaler().fit_transform(X)
 
-clf = SVM_smooth_kernel(sigma=1e-5, lbd=1, kernel=RBF(8))
+# clf = SVM_smooth_kernel(sigma=1e-5, lbd=1, kernel=RBF(8))
+clf = SVM_smooth(sigma=1e-5, lbd=1e-10)
 clf.fit(
     X,
     y,
     eta=0.5 / n,
-    n_iter=100,
+    n_iter=7000,
     cv=True,
     approx_cv=True,
     log_iter=True,
     log_iacv=True,
     save_err_approx=True,
+    sgd=True,
     save_err_cv=True,
-    sgd=False,
     batch_size=20,
 )
 
-print(f"Mul of gram matrix min and max {np.max(clf.gram_)/np.min(clf.gram_)}")
-print(
-    f"Inv mul {np.linalg.norm(np.linalg.inv(clf.gram_)) * np.linalg.norm(clf.gram_) }"
-)
+# print(f"Mul of gram matrix min and max {np.max(clf.gram_)/np.min(clf.gram_)}")
+# print(
+#    f"Inv mul {np.linalg.norm(np.linalg.inv(clf.gram_)) * np.linalg.norm(clf.gram_) }"
+# )
 
 y_pred = clf.predict(X)
 print(f"Our accuracy: {accuracy_score(y, y_pred)}")
 
-clf = SVC()
+clf = SVC(kernel="linear", C=1)
 clf.fit(X, y)
 y_pred = clf.predict(X)
 print(f"SVC accuracy {accuracy_score(y, y_pred)}")
