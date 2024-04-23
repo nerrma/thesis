@@ -14,30 +14,34 @@ import matplotlib.pyplot as plt
 from cv_svm import SVM_smooth
 from kernel_svm import SVM_smooth_kernel
 
+import jax
+
+jax.config.update("jax_platform_name", "cpu")
+
 # X, y = load_breast_cancer(return_X_y=True)
 # X, y = make_classification(n_samples=100, n_features=100, random_state=10)
-X, theta_star, y = sample_from_logreg(n=850, p=50)
+X, theta_star, y = sample_from_logreg(n=10, p=5)
 n = X.shape[0]
 p = X.shape[1]
 y[np.where(y == 0)] = -1
 
 X = StandardScaler().fit_transform(X)
 
-# clf = SVM_smooth_kernel(sigma=1e-5, lbd=1, kernel=RBF(8))
-clf = SVM_smooth(sigma=1e-5, lbd=1e-10)
+clf = SVM_smooth_kernel(sigma=1e-5, lbd=1, kernel=RBF(8))
+# clf = SVM_smooth(sigma=1e-5, lbd=1e-10)
 clf.fit(
     X,
     y,
     eta=0.5 / n,
-    n_iter=7000,
-    cv=True,
+    n_iter=1000,
+    cv=False,
     approx_cv=True,
     log_iter=True,
     log_iacv=True,
     save_err_approx=True,
     sgd=True,
     save_err_cv=True,
-    batch_size=20,
+    batch_size=10,
 )
 
 # print(f"Mul of gram matrix min and max {np.max(clf.gram_)/np.min(clf.gram_)}")

@@ -28,9 +28,7 @@ class IACV(ACV_Obj):
             - self.alpha_t * self.vmap_matmul(hess_minus_i, (self.iterates - theta))
         )
 
-    def step_sgd(
-        self, theta, X_batch, y_batch, idxs, kernel=False, save_cond_num=False, **kwargs
-    ):
+    def step_sgd(self, theta, X_batch, y_batch, idxs, save_cond_num=False, **kwargs):
         f_grad = self.nabla_function(theta, X_batch, y_batch)
         f_hess = self.hess_function(theta, X_batch, y_batch)
 

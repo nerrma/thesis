@@ -77,10 +77,10 @@ To avoid ``overfitting'', we need to define an estimate of true risk from empiri
 
 \pause
 
-The most popular way to do this is through Cross Validation (CV), where we break the observed data into small subsets to run multiple ``validation'' experiments.
+We can do this through Cross Validation (CV).
 
 \pause
-One of the most effective methods for risk approximation is Leave One Out Cross Validation (LOOCV) ^[@CVSurvey]. This method is computationally expensive as we repeat the learning task $n$ times.
+Leave One Out Cross Validation (LOOCV) is effective ^[@CVSurvey], but costly.
 
 # Literature Review
 
@@ -107,42 +107,12 @@ both NS and IJ are existing methods, and IACV is a new proposed method which we 
 We present a short summary of the theory behind these approximations.
 
 ## Newton Step
-We can redefine the definition for (regularised) empirical risk for a LOOCV experiment excluding a point with index $j$,
-\begin{align*}
-	R_{\text{reg}}(\theta; D_{-j}) = \sum_{i=1}^n \ell(\theta; D_i) - \ell(\theta; D_j) + \lambda \pi(\theta)
-\end{align*}
 
-\pause
-The Jacobian of this form is,
-\begin{align*}
-    \nabla_{\theta} R_{\text{reg}}(\theta; D_{-j}) = \sum_{i=1}^n \nabla_{\theta} \ell(\theta; D_i) - \nabla_{\theta} \ell(\theta; D_j) + \lambda \nabla_{\theta} \pi(\theta)
-\end{align*}
+In summary, we take a Newton Step on an approximation of the objective function. \pause
 
----
+\textcolor{blue}{Note that we assume $\ell(\mathord{\cdot})$ and $\pi(\mathord{\cdot})$ are both continuous and twice-differentiable functions, also that the Hessian is invertible.} \pause
 
-Therefore the Hessian becomes,
-\begin{align*}
-    \nabla_{\theta}^2 R_{\text{reg}}(\theta; D_{-j}) = H(\theta; D) - \nabla_{\theta}^2 \ell(\theta, D_{j}) \\
-    \text{where } \quad H(\theta; D) = \nabla_{\theta}^2 \left(\sum_{i=1}^n \ell(\theta; D_i)\right) + \lambda \nabla_{\theta}^2\pi(\theta)
-\end{align*}
-
-\pause
-
-\textcolor{blue}{Note that we assume $\ell(\mathord{\cdot})$ and $\pi(\mathord{\cdot})$ are both continuous and twice-differentiable functions.} \pause
-
-Now we can apply Newton's method for optimisation to take a ``step'' towards the LOOCV iterate $\hat{\theta}_{-j}$ by starting at the learned parameter $\hat{\theta}$.
-
----
-
-We define the approximation of a LOOCV iterate as $\tilde{\theta}_{-j}$, where
-\begin{align*}
-    \tilde{\theta}_{-j} &= \hat{\theta} - \left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{j})\right)^{-1} \left(\nbTh R_{\text{reg}}(\hat{\theta}; D) - \nbTh R_{\text{reg}}(\hat{\theta}; D_j)\right) \\
-    &= \hat{\theta} + \left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{j})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_j).
-\end{align*}
-
-\pause
-
-For discussion, the standard notation we'll use for the NS method is,
+For discussion, the standard notation we use for the NS method is,
 \begin{align*}
     \tilde{\theta}^{-i}_{\text{NS}} = \mathcolor{red}{\hat{\theta}} + \left(H(\hat{\theta}; D) - \nbTh^2 \ell(\hat{\theta}; D_{i})\right)^{-1} \nbTh R_{\text{reg}}(\hat{\theta}; D_i)
 \end{align*}
@@ -151,7 +121,7 @@ For discussion, the standard notation we'll use for the NS method is,
 
 ## Infinitesimal Jackknife
 
-We omit the derivation of IJ for brevity. The general idea is again to perform a first-order Taylor expansion to approximate LOOCV, though around the weights of a Jackknife. 
+The general idea is again to perform a first-order Taylor expansion to approximate LOOCV, around the weights of a Jackknife. 
 
 The final form derived for this case is
 \begin{align*}
@@ -160,15 +130,15 @@ The final form derived for this case is
 with the same assumptions as in NS (\textcolor{blue}{loss and regularisation are continuously twice-differentiable, $H$ is invertible} and \textcolor{red}{$\hat{\theta} \approx \theta^*$}).
 
 ## Iterative Approximate Cross Validation
-Recently proposed, Iterative Approximate Cross Validation (IACV) and improves the existing methods by relaxing assumptions required for accuracy.
+Iterative Approximate Cross Validation (IACV) relaxes the assumptions of previous methods.
 
-We solve the main learning task through an iterative method, where the updates are
+We solve the main learning task through updates,
 \begin{align*}
     \hat{\theta}^{(k)} = \hat{\theta}^{(k-1)} - \alpha_k \nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k})
 \end{align*}
-for $S_k \subseteq [n]$ as a subset of indices and $\alpha_k$ is a learning rate at iteration $k$. \pause
+for $S_k \subseteq [n]$ as a subset of indices and $\alpha_k$. \pause
 
-The explicit LOOCV update excluding a point $i$ is defined as,
+The LOO update excluding a point $i$ is defined as,
 \begin{align*}
     \hat{\theta}^{(k)}_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i})
 \end{align*}
@@ -176,34 +146,21 @@ this step is what we aim to approximate.
 
 --- 
 
-The burden is in calculating the Jacobian $\nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})$ for $n$ points. \pause As an approximation, we use a second-order expansion of the Jacobian for $\hat{\theta}^{(k-1)}_{-i}$ centered around the estimate $\hat{\theta}^{(k-1)}$. \pause Here,
+The cost is in evaluating $\nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_t \setminus i})$ for $n$ points. \pause We use a Taylor expansion of the Jacobian for $\hat{\theta}^{(k-1)}_{-i}$ centered around the estimate $\hat{\theta}^{(k-1)}$ for approximation. \pause Here,
 \begin{align*}
-    \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i}) \approx \nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)
+    \nbTh \Rreg(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i}) \approx \underbrace{\nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)}_{\tilde J_{-i}^{(k)}}
 \end{align*}
-is the estimate for the Jacobian.
 
 \pause
 Therefore, the IACV updates for GD and SGD become,
 \begin{align*}
-    \tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+    \only<4>{\tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k \tilde J_{-i}^{(k)} \\}
+    \only<5->{\tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)}
 \end{align*}
 
 ---
 
-The main difference (from NS and IJ) is that we can define an ACV update rule for proximal gradient descent. \pause If we define a general update rule for LOOCV proximal gradient descent as,
-\begin{align*}
-    \hat{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
-    &\text{where } \theta^\prime_{-i} = \hat{\theta}^{(k-1)}_{-i} - \alpha_k \nbTh \ell(\hat{\theta}^{(k-1)}_{-i}; D_{S_k \setminus i})
-\end{align*}
-using similar logic as in GD/SGD on the differentiable part of the regularised risk, we get IACV updates of, \pause
-\begin{align*}
-    \tilde{\theta}^{(k)}_{-i} &= \argmin_{z} \left\{ \frac{1}{2 \alpha_k} \|z - \theta^\prime_{-i} \|_2^2 + \lambda \pi(z) \right\} \\
-    \text{where }& \theta^\prime_{-i} = \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \ell(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) + \nbTh^2 \ell(\hat{\theta}^{(k-1)}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
-\end{align*}
-
----
-
-It may seem counter-intuitive that we swap a simple Jacobian for a Jacobian *and* a Hessian in the approximation step. \pause The time complexities for the operations are as follows,
+We swap a Jacobian for a Jacobian *and* a Hessian in the approximation step. \pause The time complexities for the operations are as follows,
 
 \begin{center}
 	\begin{tabular}{c|c|c}
@@ -237,7 +194,7 @@ $$
 The standard dataset $D = \{(X_i, Y_i)\}_{i=1}^n$ for $X_i \in \mathbb{R}^p$ and $Y_i \in \{0, 1\}$ is generated by
 
 $$
-    Y_i \sim \mathrm{Bernoulli}(1/(\exp(-X_i^T \theta^*) + 1))
+    Y_i \sim \mathrm{Bernoulli}\left(\frac{1}{1 + \exp(-X_i^T \theta^*)}\right)
 $$
 
 for $\theta^* \in \mathbb{R}^p$ with 5 non-zero entries.
@@ -303,7 +260,11 @@ The individual functions which make up the loss are,
 
 ---
 
-\textcolor{red}{Add section on Smooth SVM problem itself and explain role of $\lambda$.}
+We then use this loss to define the main objective,
+\begin{align*}
+    L(w; D, \sigma) = \frac{\lambda}{2} \|w\|_2^2 + \frac{1}{n} \sum_{i=1}^n \psi_M(Y_i w^T X_i; \sigma)
+\end{align*}
+where $\lambda$ controls the size of the margin.
 
 ---
 
@@ -391,7 +352,7 @@ $$\max_j d_j = \max_j \Phi^\prime_M((1 - Y_j w^T X_j)/\sigma)/\sigma.$$
 
 \begin{figure}
     \resizebox{10cm}{!}{\input{figures/svm_conv_bound_cond_no.pgf}}
-    \caption{Bound along condition numbers across convergence path.}
+    \caption{Bound along condition numbers across convergence path. ($\sigma = 0.1, \lambda = 1$)}
 \end{figure}
 
 ---
@@ -431,7 +392,7 @@ Does the bound work in improving IACV accuracy?
 
 \pause
 
-**Yes!** This is an experiment run for $\sigma = 1 \times 10^{-10}$, picking an optimisitic bound of $b = 1 \times 10^{10}$ when picking $\mathcolor{cyan}{\lambda_b}$.
+**Yes!** This is an experiment run for $\sigma = 1 \times 10^{-10}$, picking an optimistic bound of $b = 1 \times 10^{10}$ when picking $\mathcolor{cyan}{\lambda_b}$.
 
 ::: columns
 :::: column
@@ -523,7 +484,7 @@ To affirm the theory, we run a sensitivity study for both $\sigma$ and $\lambda$
 	\resizebox{4.5cm}{!}{\input{figures/svmtest_lambda_cond_no_mod.pgf}}
 \end{figure}
 
----
+## Python Implementation
 
 How do we use it?
 
@@ -550,18 +511,135 @@ The underlying implementation uses JAX, making liberal use of `vmap` and `jit` t
 	\resizebox{5.5cm}{!}{\input{figures/smoothsvm_cv_benchmark.pgf}}
 \end{figure}
 
----
-
-* [x] why IACV? show NS and IJ performing poorly
-* [x] main result of bound
-* [x] show experiment of bound working
-* [x] show $\lambda = \lambda_b$
-* [x] show $\lambda$ and $\sigma$ sensitivity study
-* [ ] computation contribution + pseudocode
-* [ ] shorter section on kernel SVM (bound result shows more robustness + experiment)
-* [ ] conclusion & further work?
+\pause
+\begin{align*}
+    \tilde{\theta}^{(k)}_{-i} &= \tilde{\theta}^{(k-1)}_{-i} - \alpha_k\left(\nbTh \Rreg(\mathcolor{red}{\hat{\theta}^{(k-1)}}; D_{S_k \setminus i}) + \nbTh^2 \Rreg(\mathcolor{red}{\hat{\theta}^{(k-1)}}; D_{S_k \setminus i}) \left(\tilde{\theta}^{(k-1)}_{-i} - \hat{\theta}^{(k-1)}\right)\right)
+\end{align*}
 
 ---
+
+Improves on existing implementation by an order of magnitude.
+
+\begin{figure}
+	\resizebox{13cm}{!}{\input{figures/IACV_runtime.pgf}}
+\end{figure}
+
+\begin{figure}
+	\includegraphics[scale=0.65]{figures/og_runtime.png}
+\end{figure}
+
+---
+
+## Kernelising Smooth SVM
+
+We can kernelise the smooth SVM by substituting $w = \phi(X) \cdot u$ for $u \in \mathbb{R}^n$,
+$$
+    L(u; D, \sigma) = \frac{\lambda}{2} u^T G u + \frac{1}{n} \sum_{i=1}^n \psi_M(Y_i G_i u; \sigma)
+$$
+where $G$ is the Gram matrix. \pause
+
+This gives us non-linearity through the feature map $\phi: \mathbb{R}^p \to \mathbb{R}^d$ where $d > p$. **How does kernelisation impact IACV?**
+
+---
+
+The bound for the condition number in this case is,
+$$
+    \kappa(\nabla_u^2 L(u; D_{-i}, \sigma)) \leq \frac{\|\tilde G^{-1}\| \left(\lambda\|\tilde G\| + C_k B_k\right)}{\lambda}
+$$
+where $C_k = \|\tilde G^T \tilde G\|/(n - 1)$ and $B_k = 1/\left(2\sigma \sqrt{1 + (\frac{m^*}{\sigma})^2}^3\right)$.
+
+\pause
+Assumptions 2 and 3 hold similar to the linear SVM case.
+
+---
+
+The condition number is much less sensitive to change based on $\sigma$ and depends mostly on $\lambda$.
+
+::: columns
+:::: column
+\begin{figure}
+	\includegraphics[scale=0.65]{figures/kernel_sigma_cond_no.png}
+	\caption{Kernel SVM.}
+\end{figure}
+::::
+:::: column
+\begin{figure}
+	\includegraphics[scale=0.65]{figures/linear_sigma_cond_no.png}
+	\caption{Linear SVM.}
+\end{figure}
+::::
+:::
+
+---
+
+::: columns
+:::: column
+\begin{figure}
+	\resizebox{5cm}{!}{\input{figures/kernel_svmtest_sigma_err_approx_mod.pgf}}
+	\caption{$\text{Err}_\text{Approx}$ for varying $\sigma$.}
+\end{figure}
+::::
+:::: column
+\begin{figure}
+	\resizebox{5cm}{!}{\input{figures/kernel_svmtest_sigma_err_cv_mod.pgf}}
+	\caption{$\text{Err}_\text{CV}$ for varying $\sigma$.}
+\end{figure}
+::::
+:::
+
+---
+
+::: columns
+:::: column
+\begin{figure}
+	\includegraphics[scale=0.5]{figures/kernel_lambda_approx_outlier.png}
+	\caption{$\text{Err}_\text{Approx}$ for varying $\lambda$.}
+\end{figure}
+::::
+:::: column
+\begin{figure}
+	\includegraphics[scale=0.5]{figures/kernel_lambda_cv_outlier.png}
+	\caption{$\text{Err}_\text{CV}$ for varying $\lambda$.}
+\end{figure}
+::::
+:::
+
+\begin{figure}
+	\includegraphics[scale=0.5]{figures/kernel_lambda_cond_no.png}
+\end{figure}
+
+---
+
+::: columns
+:::: column
+\begin{figure}
+	\includegraphics[scale=0.5]{figures/kernel_lambda_approx_norm.png}
+	\caption{$\text{Err}_\text{Approx}$ for varying $\lambda$.}
+\end{figure}
+::::
+:::: column
+\begin{figure}
+	\includegraphics[scale=0.5]{figures/kernel_lambda_cv_norm.png}
+	\caption{$\text{Err}_\text{CV}$ for varying $\lambda$.}
+\end{figure}
+::::
+:::
+
+\begin{figure}
+	\includegraphics[scale=0.5]{figures/kernel_lambda_cond_no_norm.png}
+\end{figure}
+
+# Conclusion & Further Work
+
+Unfortunately, the original goal of applications to high dimensional problems was not fruitful.
+
+In this thesis, we've explored ACV (specifically IACV) in a setting where an explicit Hessian does not exist without smoothing by applying it to Smooth SVM.
+
+\pause
+- Analysis of IACV on similar smoothed problems
+	- Smoothed ReLU
+- IACV in a non-convex setting
+- Is IACV is high dimensions feasible?
 
 # Bibliography
 

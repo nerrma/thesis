@@ -182,7 +182,7 @@ class SVM_smooth_kernel:
         save_cond_num=False,
         save_err_cv=False,
         sgd=False,
-        batch_size=0,
+        batch_size=10,
     ):
         self.gram_ = self.kernel_(X, X, **self.kernel_args_)
         self.X = X
@@ -220,26 +220,26 @@ class SVM_smooth_kernel:
         loss_vmap = jit(vmap(self.loss, in_axes=(0, 0, 0, None)))
         loss_vmap_fixed_w = jit(vmap(self.loss, in_axes=(None, 0, 0, None)))
 
-        batch_idxs = []
+        idx = 0
         sparse_u = np.empty(0)
         sparse_gram = np.empty(0)
         sparse_y = np.empty(0)
         for t in range(n_iter):
+            idxs = np.random.choice(np.arange(self.n), size=batch_size)
             if sgd:
-                batch_idxs = np.random.choice(np.arange(self.n), size=batch_size)
+                sparse_gram = np.zeros_like(self.gram_)
+                sparse_gram = self.gram_[idx, :]
 
-                sparse_u = self.batchify(self.u_, batch_idxs)
-                sparse_gram = self.batchify(self.gram_, (batch_idxs, batch_idxs))
-                sparse_y = self.batchify(y, batch_idxs)
+                sparse_y = np.zeros(self.n)
+                sparse_y[idx] = y[idx]
 
             if approx_cv == True:
                 if sgd:
-                    self.approx_cv_obj.step_gd(
-                        sparse_u,
-                        sparse_gram,
-                        sparse_y,
-                        kernel=False,
-                        batch_idxs=batch_idxs,
+                    self.approx_cv_obj.step_sgd(
+                        self.u_,
+                        self.gram_,
+                        y[idxs],
+                        idxs=idxs,
                     )
                 else:
                     self.approx_cv_obj.step_gd(
@@ -258,10 +258,11 @@ class SVM_smooth_kernel:
 
             if sgd:
                 f_grad = self.nabla_fgd_(
-                    sparse_u, sparse_gram, sparse_y, self.sigma_, self.lbd_
+                    self.u_, self.gram_, y[idxs], self.sigma_, self.lbd_
                 )
             else:
                 f_grad = self.nabla_fgd_(self.u_, self.gram_, y, self.sigma_, self.lbd_)
+
             self.u_ = self.u_ - eta * f_grad
 
             if log_iter == True:
